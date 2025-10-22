@@ -1,799 +1,231 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Telestrations — Multiplayer (Firebase RTDB)</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎨 Telestrations Game</title>
 <style>
-  :root{
-    --accent:#5c6bc0; --accent-dark:#3949ab; --bg1:#d7f1ff; --bg2:#f0eaff;
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background-color: #cfe9ff;
+    color: #333;
+    margin: 0;
+    padding: 0;
   }
-  *{box-sizing:border-box}
-  body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin:0; min-height:100vh;
-    display:flex;align-items:flex-start;justify-content:center;padding:28px;
-    background:linear-gradient(135deg,var(--bg1),var(--bg2));
+  header {
+    background-color: #5aa0ff;
+    color: white;
+    padding: 15px;
+    font-size: 1.5em;
   }
-  .card{width:100%;max-width:1000px;background:#fff;border-radius:16px;padding:20px;box-shadow:0 8px 30px rgba(30,30,80,0.08)}
-  h1{color:var(--accent);margin:0;font-size:22px}
-  p.lead{color:#666;margin:6px 0 14px}
-  .row{display:flex;gap:16px;flex-wrap:wrap}
-  .col{flex:1 1 320px}
-  .panel{background:#fbfbff;padding:14px;border-radius:12px;border:1px solid #f0f0ff}
-  label{display:block;margin-top:10px;color:#333;font-weight:600}
-  input[type="text"], input[type="number"]{width:100%;padding:10px;border-radius:10px;border:1px solid #ddd;margin-top:6px}
-  button{background:var(--accent);color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;margin-top:10px;font-weight:700}
-  button.ghost{background:transparent;color:var(--accent);border:2px solid var(--accent);padding:8px}
-  .muted{color:#777;font-size:14px}
-  canvas{border-radius:10px;border:2px solid var(--accent);background:#fff;display:block;touch-action:none}
-  .toolbar{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px}
-  .size-btn{padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer}
-  .size-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .controls{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:10px;flex-wrap:wrap}
-  .timer{font-weight:800;color:var(--accent-dark)}
-  .chain-item{background:#f8f8ff;border:1px solid #efefff;border-radius:10px;padding:10px;margin-top:8px}
-  .summary-list{max-height:420px;overflow:auto;padding:6px}
-  .hidden{display:none}
-  @media(max-width:880px){ .row{flex-direction:column} }
+  .container {
+    max-width: 700px;
+    margin: 20px auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    padding: 20px;
+  }
+  input, button, select {
+    padding: 8px;
+    margin: 5px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 1em;
+  }
+  button {
+    background-color: #5aa0ff;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #3a7adf;
+  }
+  canvas {
+    border: 2px solid #333;
+    background: #fff;
+    border-radius: 10px;
+  }
+  #timer {
+    font-weight: bold;
+    color: #ff5252;
+  }
 </style>
 </head>
 <body>
-  <div class="card" id="app">
-    <h1>Telestrations — Multiplayer</h1>
-    <p class="lead">Realtime rooms using Firebase Realtime Database. Create or join a room, enter a username, then play across devices.</p>
-
-    <!-- LOBBY -->
-    <div id="lobby">
-      <div class="row">
-        <div class="col panel">
-          <h3 style="margin:0">Create Room</h3>
-          <p class="muted">You will be Player 1 (host).</p>
-          <label>Host username</label>
-          <input id="hostName" type="text" placeholder="Alice">
-          <label>Number of players (incl. host)</label>
-          <input id="hostCount" type="number" min="3" max="12" value="4">
-          <label>Word or phrase (optional)</label>
-          <input id="hostWord" type="text" placeholder="Enter a custom word or phrase OR pick random">
-          <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-            <button id="pickRandom">Pick Random Word or Phrase</button>
-            <div id="picked" style="font-weight:700;color:var(--accent);margin-left:8px"></div>
-          </div>
-          <div style="margin-top:12px">
-            <button id="createBtn">Create Room</button>
-            <button id="clearLocal" class="ghost" style="margin-left:8px">Clear local saved data</button>
-          </div>
-          <p class="muted" style="margin-top:10px">Rooms persist in Firebase so multiple devices can join. Use the room code to share.</p>
-        </div>
-
-        <div class="col panel">
-          <h3 style="margin:0">Join Room</h3>
-          <p class="muted">Enter a room code and username.</p>
-          <label>Your username</label>
-          <input id="joinName" type="text" placeholder="Bob">
-          <label>Room code</label>
-          <input id="joinCode" type="text" placeholder="ABCD" maxlength="6">
-          <div style="margin-top:12px">
-            <button id="joinBtn">Join Room</button>
-          </div>
-          <div id="joinMsg" class="muted" style="margin-top:10px"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ROOM VIEW -->
-    <div id="roomView" class="hidden">
-      <div class="row">
-        <div class="col panel">
-          <div style="display:flex;justify-content:space-between">
-            <div>
-              <div style="font-weight:800" id="roomTitle">Room: XXXX</div>
-              <div class="muted" id="roomWordDisplay" style="margin-top:6px"></div>
-            </div>
-            <div style="text-align:right">
-              <div class="muted">You are</div>
-              <div style="font-weight:800;color:var(--accent)" id="youName">You</div>
-            </div>
-          </div>
-
-          <div class="muted" style="margin-top:12px">Players</div>
-          <div id="playersList" style="margin-top:8px"></div>
-
-          <div id="hostArea" style="margin-top:12px"></div>
-
-          <div style="margin-top:12px">
-            <button id="leaveBtn" class="ghost">Leave Room</button>
-          </div>
-        </div>
-
-        <div class="col panel">
-          <h4 style="margin:0">Quick Info</h4>
-          <p class="muted" id="roomMeta"></p>
-          <div style="margin-top:12px">
-            <button id="openGameBtn" class="ghost hidden">Open game</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- GAME VIEW -->
-    <div id="gameView" class="hidden" style="margin-top:12px">
-      <div class="row">
-        <div class="col panel">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-weight:800" id="phaseTitle">Phase</div>
-              <div class="muted" id="phaseSub"></div>
-            </div>
-            <div style="text-align:right">
-              <div class="muted">Turn</div>
-              <div style="font-weight:900;color:var(--accent)" id="turnDisplay">1 / 4</div>
-            </div>
-          </div>
-
-          <div id="drawPanel" style="margin-top:12px">
-            <div class="muted">Instruction</div>
-            <div style="font-weight:800;margin-top:6px" id="instructionText"></div>
-            <div style="margin-top:12px;display:flex;justify-content:center">
-              <canvas id="canvas" width="640" height="420"></canvas>
-            </div>
-
-            <div class="toolbar">
-              <div class="muted">Pen: black</div>
-              <div style="width:10px"></div>
-              <div class="muted">Size:</div>
-              <button class="size-btn" data-size="4" id="sizeS">S</button>
-              <button class="size-btn active" data-size="8" id="sizeM">M</button>
-              <button class="size-btn" data-size="14" id="sizeL">L</button>
-            </div>
-
-            <div class="controls">
-              <button id="undo">Undo</button>
-              <button id="clearCanvas" class="ghost">Clear</button>
-              <div style="width:8px"></div>
-              <div class="muted">Time left:</div>
-              <div class="timer" id="drawTimer">60s</div>
-              <button id="submitDraw">Submit Drawing</button>
-            </div>
-          </div>
-
-          <div id="guessPanel" class="hidden" style="margin-top:12px">
-            <div class="muted">Previous drawing</div>
-            <div style="text-align:center;margin-top:8px">
-              <img id="previewImg" src="" style="max-width:100%;border-radius:10px;border:1px solid #eee">
-            </div>
-            <label style="margin-top:10px">Enter guess (phrase allowed)</label>
-            <input id="guessInput" type="text" placeholder="Type your guess">
-            <div style="margin-top:10px;display:flex;gap:10px;align-items:center;justify-content:center">
-              <div class="muted">Time left</div>
-              <div class="timer" id="guessTimer">30s</div>
-              <button id="submitGuess">Submit Guess</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="col panel">
-          <h4 style="margin:0">Chain</h4>
-          <div class="muted">Submissions so far</div>
-          <div class="summary-list" id="chainList" style="margin-top:8px"></div>
-          <div id="bottomControls" style="margin-top:12px"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RESULTS -->
-    <div id="results" class="hidden panel" style="margin-top:12px">
-      <h3 style="margin:0">Final Results</h3>
-      <div class="muted" style="margin-top:8px">Original word or phrase:</div>
-      <div style="font-weight:800;color:var(--accent);margin-top:8px" id="originalDisplay"></div>
-      <div class="summary-list" id="finalList" style="margin-top:12px"></div>
-      <div style="margin-top:12px">
-        <button id="backToLobby">Back to Lobby</button>
-      </div>
-    </div>
+<header>🎨 Telestrations Game</header>
+<div class="container" id="gameContainer">
+  <div id="homeScreen">
+    <h2>Create or Join a Room</h2>
+    <button id="createRoomBtn">Create Room</button>
+    <button id="joinRoomBtn">Join Room</button>
   </div>
+  <div id="createRoom" style="display:none;">
+    <h3>Host Game</h3>
+    <label>Number of Players: <input id="numPlayers" type="number" min="3" max="12"></label><br>
+    <button id="startHost">Next</button>
+  </div>
+  <div id="joinRoom" style="display:none;">
+    <h3>Join Room</h3>
+    <input id="joinCode" placeholder="Enter Room Code">
+    <input id="joinName" placeholder="Your Name">
+    <button id="joinGameBtn">Join</button>
+  </div>
+  <div id="hostWord" style="display:none;">
+    <h3>Enter a Word or Phrase</h3>
+    <input id="customWord" placeholder="Type a word or phrase">
+    <button id="startGame">Start Game</button>
+  </div>
+  <div id="drawScreen" style="display:none;">
+    <h3>Draw: <span id="drawPrompt"></span></h3>
+    <canvas id="drawCanvas" width="400" height="300"></canvas><br>
+    <label>Pen Size: 
+      <select id="penSize">
+        <option value="2">Small</option>
+        <option value="5" selected>Medium</option>
+        <option value="10">Large</option>
+      </select>
+    </label>
+    <button id="undoBtn">Undo</button>
+    <button id="clearBtn">Clear</button><br>
+    <p>⏳ Time left: <span id="timer">60</span>s</p>
+    <button id="submitDrawing">Submit</button>
+  </div>
+  <div id="guessScreen" style="display:none;">
+    <h3>Guess the Word or Phrase</h3>
+    <img id="guessImage" width="400" height="300"><br>
+    <input id="guessInput" placeholder="Your Guess">
+    <p>⏳ Time left: <span id="guessTimer">30</span>s</p>
+    <button id="submitGuess">Submit Guess</button>
+  </div>
+  <div id="resultsScreen" style="display:none;">
+    <h3>Results</h3>
+    <div id="resultsList"></div>
+  </div>
+</div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getDatabase, ref, set, get, onValue, push, update } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
-  <!-- Firebase CDN -->
-  <script src="https://www.gstatic.com/firebasejs/9.31.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.31.0/firebase-database-compat.js"></script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
+    authDomain: "telestrations-game-aa386.firebaseapp.com",
+    databaseURL: "https://telestrations-game-aa386-default-rtdb.firebaseio.com",
+    projectId: "telestrations-game-aa386",
+    storageBucket: "telestrations-game-aa386.firebasestorage.app",
+    messagingSenderId: "461499249155",
+    appId: "1:461499249155:web:c785ab9cd1c7aab44f1436"
+  };
 
-<script>
-/* ----------------- Paste your Firebase config here (embedded) -----------------
-   You provided:
-   const firebaseConfig = {
-     apiKey: "...",
-     authDomain: "telestrations-game-aa386.firebaseapp.com",
-     projectId: "telestrations-game-aa386",
-     storageBucket: "telestrations-game-aa386.firebasestorage.app",
-     messagingSenderId: "...",
-     appId: "..."
-   };
-   ---------------------------------------------------------------------------*/
-const firebaseConfig = {
-  apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
-  authDomain: "telestrations-game-aa386.firebaseapp.com",
-  projectId: "telestrations-game-aa386",
-  storageBucket: "telestrations-game-aa386.firebasestorage.app",
-  messagingSenderId: "461499249155",
-  appId: "1:461499249155:web:c785ab9cd1c7aab44f1436"
-};
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+  // UI references
+  const homeScreen = document.getElementById('homeScreen');
+  const createRoomDiv = document.getElementById('createRoom');
+  const joinRoomDiv = document.getElementById('joinRoom');
+  const hostWordDiv = document.getElementById('hostWord');
+  const drawScreen = document.getElementById('drawScreen');
+  const guessScreen = document.getElementById('guessScreen');
+  const resultsScreen = document.getElementById('resultsScreen');
 
-/* ----------------- App code ----------------- */
-(function(){
-  // UI refs
-  const lobby = document.getElementById('lobby');
-  const roomView = document.getElementById('roomView');
-  const gameView = document.getElementById('gameView');
-  const resultsView = document.getElementById('results');
+  let playerName = "";
+  let roomCode = "";
+  let playerOrder = [];
+  let currentTurn = 0;
+  let numPlayers = 0;
 
-  const hostName = document.getElementById('hostName');
-  const hostCount = document.getElementById('hostCount');
-  const hostWord = document.getElementById('hostWord');
-  const pickRandom = document.getElementById('pickRandom');
-  const picked = document.getElementById('picked');
-  const createBtn = document.getElementById('createBtn');
-  const clearLocal = document.getElementById('clearLocal');
+  document.getElementById('createRoomBtn').onclick = () => {
+    homeScreen.style.display = 'none';
+    createRoomDiv.style.display = 'block';
+  };
 
-  const joinName = document.getElementById('joinName');
-  const joinCode = document.getElementById('joinCode');
-  const joinBtn = document.getElementById('joinBtn');
-  const joinMsg = document.getElementById('joinMsg');
+  document.getElementById('joinRoomBtn').onclick = () => {
+    homeScreen.style.display = 'none';
+    joinRoomDiv.style.display = 'block';
+  };
 
-  const roomTitle = document.getElementById('roomTitle');
-  const youName = document.getElementById('youName');
-  const playersList = document.getElementById('playersList');
-  const hostArea = document.getElementById('hostArea');
-  const roomMeta = document.getElementById('roomMeta');
-  const leaveBtn = document.getElementById('leaveBtn');
+  document.getElementById('startHost').onclick = async () => {
+    numPlayers = parseInt(document.getElementById('numPlayers').value);
+    if (!numPlayers || numPlayers < 3 || numPlayers > 12) return alert("Enter valid player count (3–12)");
+    roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+    playerName = "Host";
+    await set(ref(db, 'rooms/' + roomCode), {
+      numPlayers, host: playerName, state: 'waiting', players: [playerName]
+    });
+    createRoomDiv.style.display = 'none';
+    hostWordDiv.style.display = 'block';
+  };
 
-  const phaseTitle = document.getElementById('phaseTitle');
-  const phaseSub = document.getElementById('phaseSub');
-  const turnDisplay = document.getElementById('turnDisplay');
+  document.getElementById('joinGameBtn').onclick = async () => {
+    roomCode = document.getElementById('joinCode').value.toUpperCase();
+    playerName = document.getElementById('joinName').value;
+    const snap = await get(ref(db, 'rooms/' + roomCode));
+    if (!snap.exists()) return alert("Room not found!");
+    const data = snap.val();
+    const players = data.players || [];
+    if (players.length >= data.numPlayers) return alert("Room is full!");
+    players.push(playerName);
+    await update(ref(db, 'rooms/' + roomCode), { players });
+    joinRoomDiv.innerHTML = `<h3>Joined Room ${roomCode}</h3><p>Waiting for host to start...</p>`;
+  };
 
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-  const instructionText = document.getElementById('instructionText');
-  const drawTimerEl = document.getElementById('drawTimer');
-  const guessTimerEl = document.getElementById('guessTimer');
-  const previewImg = document.getElementById('previewImg');
-  const submitDraw = document.getElementById('submitDraw');
-  const submitGuess = document.getElementById('submitGuess');
-  const guessInput = document.getElementById('guessInput');
+  document.getElementById('startGame').onclick = async () => {
+    const word = document.getElementById('customWord').value.trim() || "Mystery Phrase";
+    const snap = await get(ref(db, 'rooms/' + roomCode));
+    const data = snap.val();
+    const others = data.players.slice(1);
+    others.sort(() => Math.random() - 0.5);
+    playerOrder = [data.host, ...others];
+    await update(ref(db, 'rooms/' + roomCode), {
+      state: 'playing',
+      word,
+      playerOrder,
+      turn: 0,
+      actions: []
+    });
+    hostWordDiv.style.display = 'none';
+    startDrawing(word);
+  };
 
-  const sizeBtns = document.querySelectorAll('.size-btn');
-  const undoBtn = document.getElementById('undo');
-  const clearCanvas = document.getElementById('clearCanvas');
-
-  const chainList = document.getElementById('chainList');
-  const finalList = document.getElementById('finalList');
-  const originalDisplay = document.getElementById('originalDisplay');
-  const backToLobby = document.getElementById('backToLobby');
-
-  // prompts
-  const prompts = [
-    "Elephant in the room","Raining cats and dogs","Dancing queen","Banana split",
-    "Jumping the gun","Treasure map","Invisible ink","Wormhole","Time machine",
-    "Bigfoot sighting","Haunted house","Synchronized swimming","The great wall of China",
-    "Hot potato","Piece of cake","Butterflies in your stomach","Too many cooks",
-    "Walking on eggshells","Barking up the wrong tree","Sleeping beauty",
-    "Fish out of water","Cat got your tongue","Lost in translation","Cut the cord",
-    "Break the ice","Tickled pink","Back to square one","Under the weather",
-    "Treasure chest","Giraffe on roller skates"
-  ];
-
-  // local session
-  let myId = null, myName = null, roomCode = null;
-  function uid(){ return 'p' + Math.random().toString(36).slice(2,9); }
-
-  // canvas state (local until submit)
-  let drawing=false, strokes=[], undone=[];
-  let penSize = 8; // default medium
-  function setActiveSize(sz){
-    penSize = sz;
-    sizeBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.size)===sz));
-  }
-  sizeBtns.forEach(b => b.addEventListener('click', ()=> setActiveSize(parseInt(b.dataset.size))));
-  setActiveSize(8);
-
-  // pointer helpers
-  function posFromEvent(e){
-    const r = canvas.getBoundingClientRect();
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - r.left;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - r.top;
-    return {x,y};
-  }
-
-  function startStroke(e){
-    e.preventDefault();
-    drawing=true;
-    const p = posFromEvent(e);
-    const stroke = {size:penSize, points:[p]};
-    strokes.push(stroke);
-    undone = [];
-    redraw();
-  }
-  function moveStroke(e){
-    if (!drawing) return;
-    const p = posFromEvent(e);
-    strokes[strokes.length-1].points.push(p);
-    redraw();
-  }
-  function endStroke(e){ drawing=false; }
-  function redraw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.lineCap = "round"; ctx.lineJoin="round";
-    for (const s of strokes){
-      ctx.beginPath();
-      ctx.lineWidth = s.size;
-      ctx.strokeStyle = '#000';
-      for (let i=0;i<s.points.length;i++){
-        const pt = s.points[i];
-        if (i===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
-      }
+  function startDrawing(prompt) {
+    drawScreen.style.display = 'block';
+    document.getElementById('drawPrompt').textContent = prompt;
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#000";
+    let drawing = false;
+    let undoStack = [];
+    canvas.addEventListener('mousedown', e => { drawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
+    canvas.addEventListener('mousemove', e => {
+      if (!drawing) return;
+      ctx.lineTo(e.offsetX, e.offsetY);
       ctx.stroke();
-    }
-  }
-  canvas.addEventListener('mousedown', startStroke);
-  canvas.addEventListener('mousemove', moveStroke);
-  document.addEventListener('mouseup', endStroke);
-  // touch
-  canvas.addEventListener('touchstart', (e)=>{ startStroke(e); }, {passive:false});
-  canvas.addEventListener('touchmove', (e)=>{ moveStroke(e); }, {passive:false});
-  document.addEventListener('touchend', endStroke);
-
-  undoBtn.addEventListener('click', ()=>{ if (strokes.length){ undone.push(strokes.pop()); redraw(); }});
-  clearCanvas.addEventListener('click', ()=>{ if (confirm('Clear entire canvas?')){ strokes=[]; undone=[]; redraw(); } });
-
-  function canvasToDataURL(){ return canvas.toDataURL('image/png'); }
-
-  // helper DB refs
-  function roomRef(code){ return db.ref('rooms/' + code); }
-
-  // pick random
-  pickRandom.onclick = ()=> {
-    const r = prompts[Math.floor(Math.random()*prompts.length)];
-    hostWord.value = '';
-    picked.textContent = r;
-    picked.dataset.word = r;
-  };
-
-  // create room
-  createBtn.onclick = async ()=>{
-    const name = hostName.value.trim();
-    const count = parseInt(hostCount.value);
-    let word = hostWord.value.trim();
-    if (!name) return alert('Enter a host username');
-    if (!count || count < 3) return alert('Enter number of players (>=3)');
-    if (!word){
-      word = picked.dataset.word || prompts[Math.floor(Math.random()*prompts.length)];
-    }
-    myId = uid(); myName = name;
-    // generate code unique
-    let code = genCode();
-    // ensure unique (rare collision)
-    const snap = await roomRef(code).once('value');
-    let tries = 0;
-    while(snap.exists() && tries < 8){
-      code = genCode(); tries++;
-    }
-    roomCode = code;
-    const roomObj = {
-      code, hostId: myId, hostName: name, playerCount: count, word,
-      started: false, currentTurn: 1, createdAt: Date.now()
-    };
-    // players as map slot -> {id,name,slot}
-    roomObj.players = {};
-    roomObj.players['1'] = {id: myId, name, slot: 1};
-    // gameData as ordered list
-    roomObj.gameData = {};
-    // write to DB
-    await roomRef(code).set(roomObj);
-    // store local for convenience
-    localStorage.setItem('teles_current', JSON.stringify({roomCode:code, myId}));
-    openRoom(code);
-  };
-
-  // join room
-  joinBtn.onclick = async ()=>{
-    const name = joinName.value.trim();
-    const code = (joinCode.value||'').trim().toUpperCase();
-    if (!name) return joinMsg.textContent = 'Enter username';
-    if (!code) return joinMsg.textContent = 'Enter room code';
-    const rSnap = await roomRef(code).once('value');
-    if (!rSnap.exists()) return joinMsg.textContent = 'Room not found';
-    const room = rSnap.val();
-    if (room.started) return joinMsg.textContent = 'Game already started';
-    // find next available slot (1..playerCount)
-    const playerCount = room.playerCount || 3;
-    const takenSlots = Object.values(room.players||{}).map(p=>p.slot);
-    let slot = 1;
-    while(takenSlots.includes(slot) && slot <= playerCount) slot++;
-    if (slot > playerCount) return joinMsg.textContent = 'Room full';
-    myId = uid(); myName = name; roomCode = code;
-    // write into players map
-    const playerObj = {id: myId, name, slot};
-    await db.ref('rooms/' + code + '/players/' + slot).set(playerObj);
-    localStorage.setItem('teles_current', JSON.stringify({roomCode:code, myId}));
-    openRoom(code);
-  };
-
-  // gen 4-letter code
-  function genCode(){
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let s=''; for(let i=0;i<4;i++) s+=chars[Math.floor(Math.random()*chars.length)];
-    return s;
-  }
-
-  // open room view and listen for updates
-  let roomListener = null, playersListener=null, gameListener=null;
-  function openRoom(code){
-    lobby.classList.add('hidden');
-    roomView.classList.remove('hidden');
-    gameView.classList.add('hidden');
-    resultsView.classList.add('hidden');
-    roomCode = code;
-    // set up listener
-    if (roomListener) roomListener.off();
-    roomListener = roomRef(code);
-    roomListener.on('value', snap => {
-      const rm = snap.val();
-      if (!rm) {
-        alert('Room ended or deleted'); location.reload(); return;
-      }
-      renderRoom(rm);
-      // if started, open game view automatically
-      if (rm.started) openGame(rm);
     });
-  }
+    canvas.addEventListener('mouseup', () => { drawing = false; undoStack.push(canvas.toDataURL()); });
 
-  function renderRoom(rm){
-    roomTitle.textContent = 'Room: ' + rm.code;
-    youName.textContent = myName || (getCurrent()||{}).myName || '';
-    // players list
-    playersList.innerHTML = '';
-    const players = rm.players || {};
-    // create an array sorted by slot
-    const arr = Object.values(players).sort((a,b)=>a.slot - b.slot);
-    arr.forEach(p=>{
-      const div = document.createElement('div');
-      div.style.padding='6px 0';
-      div.innerHTML = `<strong>Player ${p.slot}</strong> — ${p.name} ${p.id===rm.hostId?'<span class="muted"> (host)</span>':''}`;
-      playersList.appendChild(div);
-    });
-    roomMeta.textContent = `Host: ${rm.hostName} • Players required: ${rm.playerCount}`;
-    // host controls
-    hostArea.innerHTML = '';
-    if (myId === rm.hostId && !rm.started){
-      const start = document.createElement('button'); start.textContent = 'Start Game';
-      start.onclick = async ()=>{
-        // ensure players filled or confirm
-        const playersCount = arr.length;
-        if (playersCount !== rm.playerCount){
-          if (!confirm(`There are ${playersCount} players joined but room expects ${rm.playerCount}. Start anyway?`)) return;
-        }
-        // set started
-        await roomRef(rm.code).update({started:true, currentTurn:1});
-      };
-      hostArea.appendChild(start);
+    document.getElementById('clearBtn').onclick = () => ctx.clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById('undoBtn').onclick = () => { if (undoStack.length>0){let img=new Image();img.src=undoStack.pop();img.onload=()=>ctx.drawImage(img,0,0);} };
 
-      const info = document.createElement('div');
-      info.className='muted'; info.style.marginTop='8px';
-      info.textContent = `Chosen word/phrase: "${rm.word}"`;
-      hostArea.appendChild(info);
-    } else {
-      const info = document.createElement('div');
-      info.className='muted'; info.style.marginTop='8px';
-      info.textContent = myId === rm.hostId ? 'Waiting to start...' : 'Waiting for host to start the game.';
-      hostArea.appendChild(info);
-    }
-
-    leaveBtn.onclick = async ()=>{
-      // remove this player from players map (find their slot)
-      try{
-        // load latest
-        const snap = await roomRef(rm.code).once('value');
-        const roomNow = snap.val();
-        if (!roomNow) { location.reload(); return; }
-        const ps = roomNow.players || {};
-        let mySlot = null;
-        for (const k in ps){ if (ps[k].id === myId) mySlot = k; }
-        if (mySlot) await db.ref('rooms/' + rm.code + '/players/' + mySlot).remove();
-        // if host left, delete room entirely
-        if (myId === rm.hostId){
-          await roomRef(rm.code).remove();
-        }
-      }catch(e){ console.error(e); }
-      localStorage.removeItem('teles_current');
-      location.reload();
-    };
-  }
-
-  // open game view, set up listeners for realtime gameplay
-  let drawTimer = null, guessTimer = null;
-  function openGame(rm){
-    roomView.classList.add('hidden');
-    gameView.classList.remove('hidden');
-    resultsView.classList.add('hidden');
-    // ensure we have latest room subscription on /rooms/{code}
-    // attach listener for room changes to update UI and chain
-    if (gameListener) gameListener.off();
-    gameListener = roomRef(rm.code);
-    gameListener.on('value', snap => {
-      const roomNow = snap.val();
-      if (!roomNow) { alert('Room closed'); location.reload(); return; }
-      renderGameState(roomNow);
-    });
-  }
-
-  async function renderGameState(roomNow){
-    // update turn display and chain
-    const totalPlayers = roomNow.playerCount || 3;
-    turnDisplay.textContent = (roomNow.currentTurn || 1) + ' / ' + totalPlayers;
-    // determine whether current turn is draw (odd) or guess (even)
-    const isDraw = (roomNow.currentTurn % 2 === 1);
-    const turnSlot = roomNow.currentTurn;
-    const playerObj = (roomNow.players || {})[String(turnSlot)];
-    const playerName = playerObj ? playerObj.name : ('Player ' + turnSlot);
-
-    phaseTitle.textContent = isDraw ? 'Drawing Turn' : 'Guess Turn';
-    phaseSub.textContent = `Player ${turnSlot}: ${playerName}`;
-
-    // Render chain list
-    chainList.innerHTML = '';
-    const gdata = roomNow.gameData || {};
-    // gameData stored as numeric keys; show in order
-    const keys = Object.keys(gdata).sort((a,b)=>parseInt(a)-parseInt(b));
-    keys.forEach(k=>{
-      const e = gdata[k];
-      const div = document.createElement('div'); div.className='chain-item';
-      div.innerHTML = `<strong>Turn ${k} — Player ${e.playerSlot}</strong> — ${e.type === 'draw' ? 'Drew' : 'Guessed'}`;
-      if (e.type === 'draw'){
-        const img = document.createElement('img');
-        img.src = e.data; img.style.maxWidth='100%'; img.style.marginTop='8px';
-        div.appendChild(img);
-      } else {
-        const p = document.createElement('div'); p.textContent = e.data; p.style.marginTop='8px';
-        div.appendChild(p);
-      }
-      chainList.appendChild(div);
-    });
-
-    // If last turn exceeded playerCount, show results
-    if (roomNow.currentTurn > roomNow.playerCount){
-      showResults(roomNow);
-      return;
-    }
-
-    // Which UI should this client see?
-    // find my slot in room
-    const mySlot = (Object.values(roomNow.players||{}).find(p=>p.id===myId)||{}).slot;
-    // If I'm the one whose slot == currentTurn, show draw or guess UI accordingly
-    if (mySlot && mySlot === turnSlot){
-      // it's my turn
-      if (isDraw){
-        showDrawUI(roomNow);
-      } else {
-        showGuessUI(roomNow);
-      }
-    } else {
-      showWaitingUI(roomNow);
+    let timeLeft = 60;
+    const timer = document.getElementById('timer');
+    const interval = setInterval(() => {
+      timeLeft--; timer.textContent = timeLeft;
+      if (timeLeft <= 0) submit();
+    }, 1000);
+    document.getElementById('submitDrawing').onclick = submit;
+    function submit() {
+      clearInterval(interval);
+      const img = canvas.toDataURL();
+      push(ref(db, `rooms/${roomCode}/actions`), { type: 'draw', player: playerName, content: img });
+      drawScreen.style.display = 'none';
+      resultsScreen.style.display = 'block';
+      document.getElementById('resultsList').innerHTML = "<h4>Submitted drawing. (Multiplayer relay continues in full version)</h4>";
     }
   }
-
-  function showDrawUI(roomNow){
-    document.getElementById('drawPanel').style.display='block';
-    document.getElementById('guessPanel').style.display='none';
-    // instruction: if slot 1 -> original word else last guess
-    if (roomNow.currentTurn === 1){
-      instructionText.textContent = `Draw this word or phrase: "${roomNow.word}"`;
-    } else {
-      // last gameData is previous entry
-      const g = roomNow.gameData || {};
-      const keys = Object.keys(g).sort((a,b)=>parseInt(a)-parseInt(b));
-      const last = keys.length ? g[keys[keys.length-1]] : null;
-      instructionText.textContent = `Draw this phrase: "${last ? last.data : ''}"`;
-    }
-    // reset local canvas state for drawing
-    strokes = []; undone = []; redraw();
-    setActiveSize(8);
-    // start 60s timer (clear existing)
-    if (drawTimer) clearInterval(drawTimer);
-    let t=60; drawTimerEl.textContent = t + 's';
-    drawTimer = setInterval(()=>{ t--; drawTimerEl.textContent = t + 's'; if (t<=0){ clearInterval(drawTimer); submitDrawingAuto(); } },1000);
-  }
-
-  function submitDrawingAuto(){ submitDrawing(true); }
-  async function submitDrawing(auto=false){
-    if (!roomCode || !myId) return;
-    // Save current canvas as image
-    const img = canvasToDataURL();
-    // push into gameData under next numeric key. Use transaction to write atomically
-    const roomR = roomRef(roomCode);
-    try{
-      await roomR.child('gameData').transaction(current=>{
-        if (!current) current = {};
-        const nextKey = String(Object.keys(current).length + 1);
-        current[nextKey] = {type:'draw', data: img, playerSlot: (roomR ? null : null)}; // we can't access room here; we'll set playerSlot after
-        return current;
-      });
-      // Now set playerSlot properly and increment currentTurn
-      // We'll do a transaction on the room root to append the draw and increment currentTurn atomically
-      await roomR.transaction(r=>{
-        if (!r) return r;
-        if (!r.gameData) r.gameData = {};
-        const nextKey = String(Object.keys(r.gameData).length + 1);
-        r.gameData[nextKey] = {type:'draw', data: img, playerSlot: r.currentTurn};
-        r.currentTurn = (r.currentTurn || 1) + 1;
-        return r;
-      });
-    }catch(e){
-      console.error('submitDrawing error', e);
-    }
-  }
-
-  function showGuessUI(roomNow){
-    document.getElementById('drawPanel').style.display='none';
-    document.getElementById('guessPanel').style.display='block';
-    // display last drawing (should exist)
-    const g = roomNow.gameData || {};
-    const keys = Object.keys(g).sort((a,b)=>parseInt(a)-parseInt(b));
-    const last = keys.length ? g[keys[keys.length-1]] : null;
-    previewImg.src = last && (g[last].type==='draw') ? g[last].data : '';
-    guessInput.value = '';
-    // 30s timer
-    if (guessTimer) clearInterval(guessTimer);
-    let t=30; guessTimerEl.textContent = t + 's';
-    guessTimer = setInterval(()=>{ t--; guessTimerEl.textContent = t + 's'; if (t<=0){ clearInterval(guessTimer); submitGuessAuto(); } },1000);
-  }
-
-  async function submitGuessAuto(){ submitGuess(true); }
-  async function submitGuess(auto=false){
-    if (!roomCode || !myId) return;
-    const value = (guessInput.value||'').trim() || 'No guess';
-    const roomR = roomRef(roomCode);
-    try{
-      await roomR.transaction(r=>{
-        if (!r) return r;
-        if (!r.gameData) r.gameData = {};
-        const nextKey = String(Object.keys(r.gameData).length + 1);
-        r.gameData[nextKey] = {type:'guess', data: value, playerSlot: r.currentTurn};
-        r.currentTurn = (r.currentTurn || 1) + 1;
-        return r;
-      });
-    }catch(e){
-      console.error('submitGuess error', e);
-    }
-  }
-
-  function showWaitingUI(roomNow){
-    document.getElementById('drawPanel').style.display='none';
-    document.getElementById('guessPanel').style.display='none';
-    phaseTitle.textContent = 'Waiting';
-    phaseSub.textContent = `Waiting for Player ${roomNow.currentTurn} to take their turn`;
-    // cancel any timers on this client
-    if (drawTimer) { clearInterval(drawTimer); drawTimer = null; drawTimerEl.textContent = '60s'; }
-    if (guessTimer) { clearInterval(guessTimer); guessTimer = null; guessTimerEl.textContent = '30s'; }
-  }
-
-  // Submit buttons
-  submitDraw.addEventListener('click', ()=> submitDrawing(false));
-  submitGuess.addEventListener('click', ()=> submitGuess(false));
-
-  // Show results when game finished
-  function showResults(roomNow){
-    gameView.classList.add('hidden');
-    resultsView.classList.remove('hidden');
-    originalDisplay.textContent = roomNow.word;
-    finalList.innerHTML = '';
-    const g = roomNow.gameData || {};
-    const keys = Object.keys(g).sort((a,b)=>parseInt(a)-parseInt(b));
-    keys.forEach(k=>{
-      const e = g[k];
-      const div = document.createElement('div'); div.className='chain-item';
-      div.innerHTML = `<strong>Turn ${k} — Player ${e.playerSlot}</strong> — ${e.type === 'draw' ? 'Drew' : 'Guessed'}`;
-      if (e.type === 'draw'){
-        const img = document.createElement('img'); img.src = e.data; img.style.maxWidth='100%'; img.style.marginTop='8px';
-        div.appendChild(img);
-      } else {
-        const p = document.createElement('div'); p.textContent = e.data; p.style.marginTop='8px';
-        div.appendChild(p);
-      }
-      finalList.appendChild(div);
-    });
-    // cleanup room (optional): keep it but mark not started
-    // We'll set started = false to allow viewing but not play again.
-    // Remove current from local
-    localStorage.removeItem('teles_current');
-  }
-
-  // back to lobby
-  backToLobby.addEventListener('click', ()=>{
-    location.reload();
-  });
-
-  // utility: read current from localStorage
-  function getCurrent(){ try{ return JSON.parse(localStorage.getItem('teles_current')||'null'); }catch(e){return null;} }
-
-  // set local current
-  function setCurrent(code, id, name){ localStorage.setItem('teles_current', JSON.stringify({roomCode:code, myId:id, myName:name})); }
-
-  // after create or join we stored current earlier; here we resume in case user refresh
-  (function resume(){
-    const cur = getCurrent();
-    if (!cur) return;
-    myId = cur.myId; myName = cur.myName || '';
-    roomCode = cur.roomCode;
-    // fetch room and open
-    if (roomCode){
-      roomRef(roomCode).once('value').then(snap=>{
-        if (!snap.exists()) return localStorage.removeItem('teles_current');
-        openRoom(roomCode);
-      }).catch(()=>localStorage.removeItem('teles_current'));
-    }
-  })();
-
-  // When creating/joining we call setCurrent appropriately:
-  // After creating:
-  // revise createBtn to set current and open
-  createBtn.addEventListener('click', ()=>{ /* handled above */ });
-  // But we need to ensure after create we set current - modify create handler above to call setCurrent
-  // To ensure, override createBtn onclick with wrapper that also sets current
-  createBtn.onclick = async ()=>{ // rewire to ensure current set
-    const name = hostName.value.trim();
-    const count = parseInt(hostCount.value);
-    let word = hostWord.value.trim();
-    if (!name) return alert('Enter a host username');
-    if (!count || count < 3) return alert('Enter player count');
-    if (!word) word = picked.dataset.word || prompts[Math.floor(Math.random()*prompts.length)];
-    myId = uid(); myName = name;
-    let code = genCode();
-    const rSnap = await roomRef(code).once('value');
-    let tries = 0;
-    while(rSnap.exists() && tries<8){ code = genCode(); tries++; }
-    roomCode = code;
-    const roomObj = {
-      code, hostId: myId, hostName: name, playerCount: count, word,
-      started:false, currentTurn:1, createdAt:Date.now()
-    };
-    roomObj.players = {}; roomObj.players['1'] = {id: myId, name, slot:1};
-    roomObj.gameData = {};
-    await roomRef(code).set(roomObj);
-    setCurrent(code, myId, myName);
-    openRoom(code);
-  };
-
-  // ensure join also sets current
-  joinBtn.onclick = async ()=>{
-    const name = joinName.value.trim();
-    const code = (joinCode.value||'').trim().toUpperCase();
-    if (!name) return joinMsg.textContent='Enter name';
-    if (!code) return joinMsg.textContent='Enter code';
-    const snap = await roomRef(code).once('value');
-    if (!snap.exists()) return joinMsg.textContent='Room not found';
-    const rm = snap.val();
-    if (rm.started) return joinMsg.textContent='Room already started';
-    // find next free slot
-    const taken = Object.values(rm.players||{}).map(p=>p.slot);
-    let slot=1; while(taken.includes(slot) && slot<=rm.playerCount) slot++;
-    if (slot>rm.playerCount) return joinMsg.textContent='Room full';
-    myId = uid(); myName = name; roomCode = code;
-    await db.ref('rooms/' + code + '/players/' + slot).set({id: myId, name, slot});
-    setCurrent(code, myId, myName);
-    openRoom(code);
-  };
-
-  // clear local (helps in dev)
-  clearLocal.addEventListener('click', ()=>{
-    if (!confirm('Clear local saved current info?')) return;
-    localStorage.removeItem('teles_current');
-    alert('Cleared local saved current info.');
-  });
-
-  // small safety: when user closes window, we won't automatically remove them from DB.
-  // (Could be improved later to implement presence.)
-})();
 </script>
 </body>
 </html>
