@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telestrations Team Game</title>
+<style>
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #d7f1ff, #f0eaff);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+
+  .card {
+    background: white;
+    margin-top: 40px;
+    border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    padding: 30px;
+    width: 90%;
+    max-width: 600px;
+    text-align: center;
+    transition: 0.3s;
+  }
+
+  h1 {
+    font-size: 28px;
+    margin-bottom: 15px;
+    color: #4a4a8a;
+  }
+
+  input, button {
+    font-family: inherit;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-top: 8px;
+    font-size: 16px;
+    width: 90%;
+    box-sizing: border-box;
+  }
+
+  button {
+    background-color: #5c6bc0;
+    color: white;
+    cursor: pointer;
+    border: none;
+    margin-top: 15px;
+    width: auto;
+    padding: 10px 20px;
+    transition: 0.2s;
+  }
+
+  button:hover {
+    background-color: #3949ab;
+  }
+
+  canvas {
+    border: 2px solid #5c6bc0;
+    border-radius: 10px;
+    background-color: #fff;
+    margin: 15px 0;
+  }
+
+  .color-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .color-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 3px rgba(0,0,0,0.2);
+    cursor: pointer;
+  }
+
+  .chain-item {
+    background: #f8f8ff;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card" id="gameCard">
+  <h1>Telestrations Team Game 🎨</h1>
+
+  <div id="setupScreen">
+    <p><strong>Player 1 (Host):</strong> Enter number of players and choose a word or phrase.</p>
+    <input type="number" id="playerCount" min="3" max="12" placeholder="Number of players (3–12)">
+    <p>Choose a word or phrase, or let the game pick one:</p>
+    <input type="text" id="customWord" placeholder="Enter a custom word or phrase (optional)">
+    <button id="randomWordBtn">Pick Random Word or Phrase</button>
+    <p id="chosenWord" style="color:#4a4a8a; font-weight:bold;"></p>
+    <button id="startGameBtn">Start Game</button>
+  </div>
+
+  <div id="drawScreen" style="display:none;">
+    <h2>🎨 <span id="playerLabel"></span>, draw this:</h2>
+    <p id="drawPrompt"></p>
+    <canvas id="drawCanvas" width="400" height="300"></canvas><br>
+    <div class="color-buttons">
+      <div class="color-btn" style="background:black;" data-color="#000000"></div>
+      <div class="color-btn" style="background:red;" data-color="#ff0000"></div>
+      <div class="color-btn" style="background:orange;" data-color="#ffa500"></div>
+      <div class="color-btn" style="background:yellow;" data-color="#ffff00"></div>
+      <div class="color-btn" style="background:green;" data-color="#00cc00"></div>
+      <div class="color-btn" style="background:blue;" data-color="#0000ff"></div>
+      <div class="color-btn" style="background:violet;" data-color="#8a2be2"></div>
+    </div>
+    <button id="undoBtn">Undo</button>
+    <button id="clearCanvasBtn">Clear</button><br>
+    <button id="saveDrawingBtn">Save Drawing</button>
+  </div>
+
+  <div id="guessScreen" style="display:none;">
+    <h2>🤔 <span id="playerLabelGuess"></span>, make your guess:</h2>
+    <img id="guessImage" src="" alt="Previous drawing" width="400" style="border-radius:10px; border:2px solid #5c6bc0;"><br>
+    <input type="text" id="guessInput" placeholder="Type your guess or phrase here">
+    <button id="saveGuessBtn">Submit Guess</button>
+  </div>
+
+  <div id="resultsScreen" style="display:none;">
+    <h2>📜 Final Chain</h2>
+    <div id="chainList"></div>
+    <button id="restartBtn">Start New Game</button>
+  </div>
+</div>
+
+<script>
+const telestrationsPrompts = [
+  "Elephant in the room", "Cat got your tongue", "Dancing queen",
+  "Raining cats and dogs", "Under the weather", "Jailbreak",
+  "Lost in translation", "Piece of cake", "Zombie apocalypse",
+  "Tickled pink", "Butterflies in your stomach", "Out of the blue",
+  "Fish out of water", "Broken record", "Barking up the wrong tree",
+  "The last straw", "Jumping the gun", "Hot potato", "Cut the cord",
+  "The great wall of China", "Belly button", "Synchronized swimming",
+  "Treasure map", "Haunted house", "Penguin parade", "Sleeping beauty",
+  "Invisible ink", "Wormhole", "Bigfoot sighting", "Time machine"
+];
+
+let chosenWord = "";
+let playerCount = 0;
+let currentTurn = 1;
+let gameData = []; // {type:'draw'|'guess', data, player}
+let ctx, drawing = false, currentColor = "#000000", strokes = [], undoneStrokes = [];
+
+const setupScreen = document.getElementById("setupScreen");
+const drawScreen = document.getElementById("drawScreen");
+const guessScreen = document.getElementById("guessScreen");
+const resultsScreen = document.getElementById("resultsScreen");
+const chosenWordDisplay = document.getElementById("chosenWord");
+
+document.getElementById("randomWordBtn").onclick = () => {
+  chosenWord = telestrationsPrompts[Math.floor(Math.random() * telestrationsPrompts.length)];
+  chosenWordDisplay.textContent = "Chosen word or phrase: " + chosenWord;
+};
+
+document.getElementById("startGameBtn").onclick = () => {
+  const count = parseInt(document.getElementById("playerCount").value);
+  if (!count || count < 3) return alert("Please enter at least 3 players.");
+  playerCount = count;
+  if (!chosenWord) chosenWord = document.getElementById("customWord").value.trim();
+  if (!chosenWord) return alert("Please choose or enter a word or phrase.");
+  setupScreen.style.display = "none";
+  startDrawTurn();
+};
+
+// Drawing logic
+const canvas = document.getElementById("drawCanvas");
+ctx = canvas.getContext("2d");
+
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("mousemove", draw);
+canvas.addEventListener("mouseup", endDraw);
+canvas.addEventListener("mouseleave", endDraw);
+
+function startDraw(e) {
+  drawing = true;
+  undoneStrokes = [];
+  ctx.beginPath();
+  ctx.moveTo(e.offsetX, e.offsetY);
+  strokes.push([{x: e.offsetX, y: e.offsetY, color: currentColor}]);
+}
+function draw(e) {
+  if (!drawing) return;
+  const stroke = strokes[strokes.length - 1];
+  stroke.push({x: e.offsetX, y: e.offsetY, color: currentColor});
+  ctx.strokeStyle = currentColor;
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.lineTo(e.offsetX, e.offsetY);
+  ctx.stroke();
+}
+function endDraw() {
+  drawing = false;
+  ctx.beginPath();
+}
+
+function redrawAll() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const stroke of strokes) {
+    ctx.beginPath();
+    for (let i = 0; i < stroke.length; i++) {
+      const pt = stroke[i];
+      ctx.strokeStyle = pt.color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.stroke();
+  }
+}
+
+document.querySelectorAll(".color-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentColor = btn.getAttribute("data-color");
+  });
+});
+
+document.getElementById("undoBtn").onclick = () => {
+  if (strokes.length > 0) {
+    undoneStrokes.push(strokes.pop());
+    redrawAll();
+  }
+};
+
+document.getElementById("clearCanvasBtn").onclick = () => {
+  strokes = [];
+  undoneStrokes = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+};
+
+function startDrawTurn() {
+  drawScreen.style.display = "block";
+  guessScreen.style.display = "none";
+  document.getElementById("playerLabel").textContent = "Player " + currentTurn;
+  document.getElementById("drawPrompt").textContent = currentTurn === 1 ? chosenWord : "the guess you received";
+}
+
+document.getElementById("saveDrawingBtn").onclick = () => {
+  const dataURL = canvas.toDataURL();
+  gameData.push({type:"draw", data:dataURL, player: currentTurn});
+  strokes = [];
+  undoneStrokes = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  nextTurn();
+};
+
+document.getElementById("saveGuessBtn").onclick = () => {
+  const guess = document.getElementById("guessInput").value.trim();
+  if (!guess) return alert("Please enter a guess or phrase.");
+  gameData.push({type:"guess", data:guess, player: currentTurn});
+  document.getElementById("guessInput").value = "";
+  nextTurn();
+};
+
+function nextTurn() {
+  currentTurn++;
+  if (currentTurn > playerCount) {
+    showResults();
+    return;
+  }
+  const lastEntry = gameData[gameData.length - 1];
+  if (lastEntry.type === "draw") {
+    // Next turn is guess
+    drawScreen.style.display = "none";
+    guessScreen.style.display = "block";
+    document.getElementById("playerLabelGuess").textContent = "Player " + currentTurn;
+    document.getElementById("guessImage").src = lastEntry.data;
+  } else {
+    // Next turn is draw
+    drawScreen.style.display = "block";
+    guessScreen.style.display = "none";
+    document.getElementById("playerLabel").textContent = "Player " + currentTurn;
+    document.getElementById("drawPrompt").textContent = lastEntry.data;
+  }
+}
+
+function showResults() {
+  drawScreen.style.display = "none";
+  guessScreen.style.display = "none";
+  resultsScreen.style.display = "block";
+  const list = document.getElementById("chainList");
+  list.innerHTML = "";
+  gameData.forEach(entry => {
+    const div = document.createElement("div");
+    div.className = "chain-item";
+    div.innerHTML = `<strong>Player ${entry.player}</strong> - ${entry.type === "draw" ? "Drew:" : "Guessed:"}<br>`;
+    if (entry.type === "draw") {
+      const img = document.createElement("img");
+      img.src = entry.data;
+      img.width = 300;
+      img.style.borderRadius = "10px";
+      img.style.border = "1px solid #ccc";
+      div.appendChild(img);
+    } else {
+      const p = document.createElement("p");
+      p.textContent = entry.data;
+      div.appendChild(p);
+    }
+    list.appendChild(div);
+  });
+}
+
+document.getElementById("restartBtn").onclick = () => {
+  location.reload();
+};
+</script>
+
+</body>
+</html>
