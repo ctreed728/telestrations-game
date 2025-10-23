@@ -155,7 +155,6 @@
     </div>
   </div>
 
-  <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
@@ -173,7 +172,7 @@
   const db = firebase.database();
 
   let username="", roomCode="", isHost=false, penSize=6;
-  let drawInterval=null, guessInterval=null, turnTicker=null;
+  let drawInterval=null, guessInterval=null, turnTicker=null, heartbeatTimer=null;
   let presenceListenerAttached=false, roomListenerAttached=false;
 
   const phrases = [
@@ -231,13 +230,13 @@
       const r = s.val();
       const players = r.players || [];
       let role = 'player';
-      if(r.state && r.state !== 'lobby'){ // joining mid-game -> viewer
+      if(r.state && r.state !== 'lobby'){
         const viewers = r.viewers || {};
         viewers[username] = true;
         role = 'viewer';
         if(!players.includes(username)) players.push(username);
         return roomRef.update({ players, viewers }).then(()=>role);
-      } else { // lobby
+      } else {
         if(!players.includes(username)) players.push(username);
         return roomRef.child('players').set(players).then(()=>role);
       }
@@ -255,10 +254,10 @@
     if(presenceListenerAttached) return;
     presenceListenerAttached = true;
     const presRef = db.ref(`rooms/${roomCode}/presence/${username}`);
-    presRef.set({ online:true, role, lastActive: Date.now() });
+    presRef.set({ online:true, role, lastActive: firebase.database.ServerValue.TIMESTAMP });
     presRef.onDisconnect().remove();
-    // heartbeat
-    setInterval(()=> presRef.child('lastActive').set(Date.now()), 15000);
+    if(heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(()=> presRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP), 30000);
   }
 
   function showLobby(){
@@ -269,17 +268,13 @@
     const viewersRef = db.ref('rooms/'+roomCode+'/viewers');
     playersRef.on('value', snap=>{
       const viewers = (byId('playerList').dataset.viewers && JSON.parse(byId('playerList').dataset.viewers)) || {};
-      const list = snap.val() || [];
-      renderPlayers(list, viewers, listEl);
+      renderPlayers(snap.val() || [], viewers, listEl);
     });
     viewersRef.on('value', snap=>{
       const viewers = snap.val() || {};
       byId('playerList').dataset.viewers = JSON.stringify(viewers);
-      db.ref('rooms/'+roomCode+'/players').once('value').then(s=>{
-        renderPlayers(s.val()||[], viewers, listEl);
-      });
+      db.ref('rooms/'+roomCode+'/players').once('value').then(s=> renderPlayers(s.val()||[], viewers, listEl));
     });
-
     db.ref('rooms/'+roomCode+'/players').once('value').then(s=>{
       const list = s.val() || [];
       const canStart = isHost && list.length >= 2 && list.length <= 15;
@@ -320,54 +315,60 @@
     db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: Date.now() });
   }
 
+  /* ---- Listener gating state ---- */
+  let prevState=null, prevIndex=-1, prevTurnStart=null;
+
   function subscribeRoom(){
     if(roomListenerAttached) return;
     roomListenerAttached = true;
 
-    // Presence watch for auto-reorder
-    db.ref(`rooms/${roomCode}/presence`).on('value', snap=>{
-      const presence = snap.val() || {};
-      handlePresenceChange(presence);
-    });
+    db.ref(`rooms/${roomCode}/presence`).on('value', snap=> handlePresenceChange(snap.val() || {}));
 
-    // Core room state listener
     db.ref('rooms/'+roomCode).on('value', snapshot=>{
       const room = snapshot.val();
       if(!room){ alert("Room closed"); location.reload(); return; }
 
+      // Always update the Turn Order box safely
       renderTurnOrder(room);
-      startSharedTurnTicker(room);
 
-      if(room.state === 'lobby'){ showLobby(); return; }
-
-      if(room.state === 'wordSelect'){
-        if(isHost) showOnly('wordSelectScreen');
-        else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
-        return;
-      }
-
-      const order = room.order || [];
+      // Only transition UI if these change:
       const idx = room.currentIndex || 0;
-      const current = order[idx] || "";
-      const myTurn = (current === username);
+      const shouldTransition =
+        (room.state !== prevState) ||
+        (idx !== prevIndex) ||
+        (room.turnStart !== prevTurnStart);
 
-      if(room.state === 'drawing'){
-        if(myTurn) startDrawingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${current} is drawing…`; showOnly('waitScreen'); }
+      // Update shared header timers only when the above changes
+      if(shouldTransition){
+        stopSharedTurnTicker();
+        startSharedTurnTicker(room);
+      }
+
+      // If no meaningful change, do nothing (prevents canvas/input resets)
+      if(!shouldTransition){
         return;
       }
 
-      if(room.state === 'guessing'){
-        if(myTurn) startGuessingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${current} is guessing…`; showOnly('waitScreen'); }
-        return;
-      }
-
-      if(room.state === 'results'){
+      // Transition screens
+      if(room.state === 'lobby'){
+        showLobby();
+      } else if(room.state === 'wordSelect'){
+        const order = room.order || [];
+        const current = order[idx] || "";
+        if(current === username) showOnly('wordSelectScreen');
+        else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
+      } else if(room.state === 'drawing'){
+        startDrawingPhase(room, idx);
+      } else if(room.state === 'guessing'){
+        startGuessingPhase(room, idx);
+      } else if(room.state === 'results'){
         stopSharedTurnTicker();
         showResults(room);
-        return;
       }
+
+      prevState = room.state;
+      prevIndex = idx;
+      prevTurnStart = room.turnStart;
     });
   }
 
@@ -377,9 +378,8 @@
       const order = (r.order||[]).slice();
       const viewers = r.viewers || {};
       const players = (r.players||[]).slice();
-
-      // Remove any players from order who are not present and are not viewers
       let changed = false;
+
       for(let i=order.length-1;i>=0;i--){
         const name = order[i];
         const online = presence[name] && presence[name].online;
@@ -387,12 +387,10 @@
         if(!online && !isViewer){
           order.splice(i,1);
           changed = true;
-          // If removed before or at currentIndex, adjust index back one
           if((r.currentIndex||0) >= i) r.currentIndex = Math.max(0, (r.currentIndex||0)-1);
         }
       }
 
-      // Also, in lobby, trim players list by presence (non-viewers) if they left
       if(r.state === 'lobby'){
         const filteredPlayers = players.filter(p => (presence[p] && presence[p].online) || viewers[p]);
         if(filteredPlayers.length !== players.length){
@@ -405,19 +403,11 @@
         const updates = {};
         updates[`rooms/${roomCode}/order`] = order;
         updates[`rooms/${roomCode}/currentIndex`] = r.currentIndex || 0;
-
-        // If the current player was removed and order still has players, nudge state forward
         if(order.length){
-          const idx = r.currentIndex || 0;
-          const nowCurrent = order[idx];
-          if(!nowCurrent){
-            updates[`rooms/${roomCode}/currentIndex`] = 0;
-          }
           if(r.state === 'drawing' || r.state === 'guessing'){
             updates[`rooms/${roomCode}/turnStart`] = Date.now();
           }
         } else {
-          // if order is empty, end results with what we have
           updates[`rooms/${roomCode}/state`] = 'results';
         }
         db.ref().update(updates);
@@ -426,7 +416,6 @@
   }
 
   function startSharedTurnTicker(room){
-    stopSharedTurnTicker();
     updateTurnTimerLabels(room);
     turnTicker = setInterval(()=>updateTurnTimerLabels(room), 1000);
   }
@@ -438,7 +427,7 @@
     if(!ts || !dur) return null;
     const elapsed = Math.floor((Date.now() - ts)/1000);
     return Math.max(0, dur - elapsed);
-    }
+  }
   function updateTurnTimerLabels(room){
     const lists = document.querySelectorAll('.turnOrderList');
     const order = room.order || [];
@@ -450,7 +439,6 @@
         const li = document.createElement('li');
         li.textContent = (i===idx && remaining!=null) ? `${name} (${remaining}s)` : name;
         if(i===idx) li.classList.add('current');
-        // mark viewers in grey if present list says so
         const v = room.viewers && room.viewers[name];
         if(v) li.classList.add('viewer');
         list.appendChild(li);
@@ -629,8 +617,8 @@
     db.ref('rooms/'+roomCode).once('value').then(s=>{
       const room = s.val(); if(!room) return;
       const players = (room.players || []).slice();
-      const newViewers = {}; // clear viewer flags for new game
-      const newOrder = shuffle(players.filter(p=>!newViewers[p]));
+      const newViewers = {}; // everyone back in next game
+      const newOrder = shuffle(players);
       const u = {
         ['rooms/'+roomCode+'/order']: newOrder,
         ['rooms/'+roomCode+'/currentIndex']: 0,
@@ -638,14 +626,14 @@
         ['rooms/'+roomCode+'/word']: null,
         ['rooms/'+roomCode+'/state']: 'wordSelect',
         ['rooms/'+roomCode+'/turnStart']: null,
-        ['rooms/'+roomCode+'/viewers']: newViewers
+        ['rooms/'+roomCode+'/viewers']: newViewers,
+        ['rooms/'+roomCode+'/host']: newOrder[0]   // <<< ensure host aligns with first in list
       };
       return db.ref().update(u);
     });
   }
 
   function runCleanupOnce(){
-    // Host-only cleanup
     if(!isHost) return;
     const cutoff = Date.now() - 24*60*60*1000;
     db.ref('rooms').once('value').then(s=>{
@@ -653,9 +641,7 @@
       const updates = {};
       Object.keys(rooms).forEach(code=>{
         const r = rooms[code];
-        if(r && r.createdAt && r.createdAt < cutoff){
-          updates[`rooms/${code}`] = null;
-        }
+        if(r && r.createdAt && r.createdAt < cutoff) updates[`rooms/${code}`] = null;
       });
       if(Object.keys(updates).length) db.ref().update(updates);
     });
