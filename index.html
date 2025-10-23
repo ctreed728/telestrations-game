@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>🎨 Telestrations Online Game</title>
+<title>🎨 Telestrations Game 🎨</title>
 <style>
   body { font-family: Arial, sans-serif; background-color: #e6f3ff; text-align: center; margin: 0; padding: 0; color:#123; }
-  h1 { color: #0b66b2; margin: 18px 0 8px; }
+  h1 { color: #0b66b2; margin: 18px 0 8px; cursor:pointer; }
   .container { max-width: 900px; margin: 12px auto; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); position: relative; }
   button { background-color: #007bff; color: white; border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; }
   button:hover { background-color: #0056b3; }
@@ -16,7 +16,7 @@
   ul { list-style: none; padding: 0; }
   .muted { color:#517089; font-size:14px; }
 
-  /* Room code banner visible on all screens once room is known */
+  /* Room code banner */
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
 
   /* Turn order box under main content, compact and centered */
@@ -34,13 +34,13 @@
 </style>
 </head>
 <body>
-  <h1>🎨 Telestrations Online Game</h1>
+  <h1 onclick="resetToHome()">🎨 Telestrations Game 🎨</h1>
   <div id="roomBanner">Room Code: <span id="bannerCode"></span></div>
 
   <!-- HOME -->
   <div class="container" id="homeScreen">
-    <h3>Enter your name:</h3>
-    <input type="text" id="usernameInput" placeholder="Your name"><br><br>
+    <h3>Enter a username:</h3>
+    <input type="text" id="usernameInput" placeholder="Your username"><br><br>
     <button onclick="createRoom()">Create Room</button>
     <button onclick="joinRoomPrompt()">Join Room</button>
   </div>
@@ -51,23 +51,20 @@
     <ul id="playerList"></ul>
     <p class="muted" id="lobbyMsg"></p>
     <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
-
-    <!-- Turn order box (appears only after game starts) -->
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- WORD PICK -->
+  <!-- WORD SELECT -->
   <div class="container hidden" id="wordSelectScreen">
     <h3>Pick a Word or Phrase</h3>
     <input type="text" id="customWord" placeholder="Enter custom word/phrase"><br><br>
     <button onclick="suggestWord()">Suggest Word</button>
     <p id="suggestedWord" style="font-weight:700;color:#0b66b2"></p>
     <button onclick="confirmWord()">Confirm & Start Round</button>
-
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- DRAWING -->
+  <!-- DRAW -->
   <div class="container hidden" id="drawingScreen">
     <h3 id="drawPrompt"></h3>
     <canvas id="drawCanvas" width="720" height="460"></canvas><br>
@@ -82,11 +79,10 @@
       <span class="timer" id="drawTimer">60s</span>
       <button onclick="submitDrawing()">Submit Drawing</button>
     </div>
-
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- GUESSING -->
+  <!-- GUESS -->
   <div class="container hidden" id="guessScreen">
     <h3>Guess the drawing!</h3>
     <img id="guessImage" style="max-width:100%;border:1px solid #ddd;border-radius:8px" />
@@ -97,7 +93,6 @@
       <span class="timer" id="guessTimer">30s</span>
       <button onclick="submitGuess()">Submit Guess</button>
     </div>
-
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
@@ -137,7 +132,7 @@
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null;
 
-  /* ---------- WORD LIST ---------- */
+  /* ---------- WORD LIST (sample; extend anytime) ---------- */
   const phrases = [
     "Awkward handshake","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
     "Robot yoga","Time capsule","Elephant on a skateboard","Synchronized napping","Haunted smartphone",
@@ -146,30 +141,27 @@
     "Rocket-powered shoes","Barking up the wrong tree","Two peas in a pod","Fish out of water"
   ];
 
-  /* ---------- UI HELPERS ---------- */
+  /* ---------- UTIL ---------- */
   const byId = id => document.getElementById(id);
   function showOnly(id){
-    ["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"].forEach(el=>byId(el).classList.add("hidden"));
+    ["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"]
+      .forEach(el=>byId(el).classList.add("hidden"));
     byId(id).classList.remove("hidden");
   }
   function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
   function setBanner(code){ byId('bannerCode').textContent = code; byId('roomBanner').style.display='block'; }
+  function resetToHome(){ location.reload(); }
 
   /* ---------- CREATE / JOIN ---------- */
   function createRoom(){
     username = byId('usernameInput').value.trim();
-    if(!username) return alert("Enter your name");
+    if(!username) return alert("Enter a username first");
     isHost = true;
     roomCode = Math.random().toString(36).substring(2,6).toUpperCase();
     setBanner(roomCode);
     db.ref('rooms/'+roomCode).set({
-      host: username,
-      players: [username],
-      state: 'lobby',
-      order: null,
-      currentIndex: 0,
-      gameData: {},
-      word: null
+      host: username, players: [username], state:'lobby',
+      order: null, currentIndex: 0, gameData:{}, word:null
     });
     subscribeRoom();
     showLobby();
@@ -177,25 +169,23 @@
 
   function joinRoomPrompt(){
     username = byId('usernameInput').value.trim();
-    if(!username) return alert("Enter your name first");
-    const code = prompt("Enter Room Code:");
+    if(!username) return alert("Enter a username first");
+    const code = prompt("Enter Room Code (not case-sensitive):");
     if(!code) return;
     roomCode = code.toUpperCase();
     setBanner(roomCode);
 
     const roomRef = db.ref('rooms/'+roomCode);
-    roomRef.once('value').then(snap=>{
-      if(!snap.exists()){ alert("Room not found"); return; }
-      const room = snap.val();
-      const players = room.players || [];
-      if(!players.includes(username)) roomRef.child('players').set([...players, username]);
+    roomRef.once('value').then(s=>{
+      if(!s.exists()){ alert("Room not found"); return; }
+      const r = s.val();
+      const players = r.players || [];
+      if(!players.includes(username)) players.push(username);
+      return roomRef.child('players').set(players);
     }).then(()=>{
       isHost = false;
       subscribeRoom();
       showLobby();
-    }).catch(err=>{
-      console.error("Join Room Error:", err);
-      alert("There was an error joining. Check console for details.");
     });
   }
 
@@ -204,13 +194,14 @@
     showOnly('lobbyScreen');
     byId('roomCodeDisplay').innerText = roomCode;
     const listEl = byId('playerList');
+
     db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
       const list = snap.val() || [];
       listEl.innerHTML = list.map(p=>`<li>${p}</li>`).join("");
-      const canStart = isHost && list.length >= 2 && list.length <= 12;
+      const canStart = isHost && list.length >= 2 && list.length <= 15;
       byId('startGameBtn').classList.toggle('hidden', !canStart);
       byId('lobbyMsg').innerText = isHost
-        ? "Click Start Game once all players have joined."
+        ? "A minimum of 2 players are needed to start, and you can have up to 15 total."
         : "Waiting for the host to start the game once everyone has joined and is ready.";
     });
   }
@@ -227,7 +218,9 @@
   }
 
   /* ---------- WORD PICK ---------- */
-  function suggestWord(){ byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)]; }
+  function suggestWord(){
+    byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
+  }
   function confirmWord(){
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
@@ -235,7 +228,7 @@
     db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0 });
   }
 
-  /* ---------- SUBSCRIBE TO ROOM ---------- */
+  /* ---------- ROOM SUBSCRIBE / STATE MACHINE ---------- */
   let roomListenerAttached = false;
   function subscribeRoom(){
     if(roomListenerAttached) return;
@@ -247,7 +240,7 @@
 
       renderTurnOrder(room);
 
-      if(room.state === 'lobby') { showLobby(); return; }
+      if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
         if(isHost) showOnly('wordSelectScreen');
@@ -257,18 +250,18 @@
 
       const order = room.order || [];
       const idx = room.currentIndex || 0;
-      const currentPlayer = order[idx] || "";
-      const isMyTurn = (currentPlayer === username);
+      const current = order[idx] || "";
+      const myTurn = (current === username);
 
       if(room.state === 'drawing'){
-        if(isMyTurn) startDrawingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${currentPlayer} is drawing…`; showOnly('waitScreen'); }
+        if(myTurn) startDrawingPhase(room, idx);
+        else { byId('waitMsg').innerText = `${current} is drawing…`; showOnly('waitScreen'); }
         return;
       }
 
       if(room.state === 'guessing'){
-        if(isMyTurn) startGuessingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${currentPlayer} is guessing…`; showOnly('waitScreen'); }
+        if(myTurn) startGuessingPhase(room, idx);
+        else { byId('waitMsg').innerText = `${current} is guessing…`; showOnly('waitScreen'); }
         return;
       }
 
@@ -282,19 +275,17 @@
   /* ---------- TURN ORDER RENDER ---------- */
   function renderTurnOrder(room){
     const lists = document.querySelectorAll('.turnOrderList');
-    const wrappers = document.querySelectorAll('.turnOrderBox');
+    const boxes = document.querySelectorAll('.turnOrderBox');
     const order = room.order || [];
     const idx = room.currentIndex || 0;
 
-    // Show box only after game starts (order exists) and not in lobby
     const show = order.length > 0 && room.state !== 'lobby';
-    wrappers.forEach(w => w.style.display = show ? 'block' : 'none');
-
+    boxes.forEach(b => b.style.display = show ? 'block' : 'none');
     if(!show) return;
 
-    lists.forEach(list => {
+    lists.forEach(list=>{
       list.innerHTML = '';
-      order.forEach((name, i) => {
+      order.forEach((name, i)=>{
         const li = document.createElement('li');
         li.textContent = name;
         if(i === idx) li.classList.add('current');
@@ -303,7 +294,7 @@
     });
   }
 
-  /* ---------- CANVAS DRAWING ---------- */
+  /* ---------- DRAWING ---------- */
   const canvas = byId('drawCanvas');
   const ctx = canvas.getContext('2d');
 
@@ -313,44 +304,35 @@
   }
   resetCanvasBackground();
 
-  let drawing = false;
-  let strokes = [];
-  let currentStroke = [];
-
+  let drawing=false, strokes=[], currentStroke=[];
   function highlightPen(btnId){
     ['smallPen','mediumPen','largePen'].forEach(id=>byId(id).classList.remove('activePen'));
     byId(btnId).classList.add('activePen');
   }
-  function setPenSize(size){
-    penSize = size;
-    highlightPen(size===2 ? 'smallPen' : size===6 ? 'mediumPen' : 'largePen');
-  }
-  setPenSize(6); // default
+  function setPenSize(size){ penSize=size; highlightPen(size===2?'smallPen':size===6?'mediumPen':'largePen'); }
+  setPenSize(6);
 
-  // Robust touch/mouse coordinate mapping (Firefox & mobile friendly)
+  // Robust for mobile + Firefox (falls back to client coords)
   function getPos(e){
     const r = canvas.getBoundingClientRect();
-    if (e.touches && e.touches.length){
+    if(e.touches && e.touches.length){
       return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top };
     }
-    // For some browsers, offsetX/Y can be undefined on certain events; fallback to client coords
     const x = (e.offsetX !== undefined) ? e.offsetX : (e.clientX - r.left);
     const y = (e.offsetY !== undefined) ? e.offsetY : (e.clientY - r.top);
     return { x, y };
   }
-
-  function beginStroke(e){ drawing = true; currentStroke = []; addPoint(e); }
+  function beginStroke(e){ drawing=true; currentStroke=[]; addPoint(e); }
   function moveStroke(e){ if(!drawing) return; addPoint(e); }
-  function endStroke(){ if(!drawing) return; drawing = false; if(currentStroke.length) strokes.push(currentStroke); ctx.beginPath(); }
-
+  function endStroke(){ if(!drawing) return; drawing=false; if(currentStroke.length) strokes.push(currentStroke); ctx.beginPath(); }
   function addPoint(e){
     const p = getPos(e);
     currentStroke.push(p);
     ctx.lineWidth = penSize;
     ctx.lineCap = "round";
     ctx.strokeStyle = "black";
-    if(currentStroke.length === 1){ ctx.beginPath(); ctx.moveTo(p.x, p.y); }
-    else { ctx.lineTo(p.x, p.y); ctx.stroke(); }
+    if(currentStroke.length === 1){ ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+    else { ctx.lineTo(p.x,p.y); ctx.stroke(); }
   }
 
   // Mouse events
@@ -358,7 +340,6 @@
   canvas.addEventListener('mousemove', moveStroke);
   canvas.addEventListener('mouseup', endStroke);
   canvas.addEventListener('mouseleave', endStroke);
-
   // Touch events
   canvas.addEventListener('touchstart', e=>{ e.preventDefault(); beginStroke(e); }, {passive:false});
   canvas.addEventListener('touchmove',  e=>{ e.preventDefault(); moveStroke(e);  }, {passive:false});
@@ -461,7 +442,8 @@
       div.innerHTML = `<b>Step ${step+1} — ${e.player} (${e.type})</b><br>`;
       if(e.type === 'draw'){
         const img = document.createElement('img');
-        img.src = e.data; img.style.maxWidth='100%'; img.style.border='1px solid #ddd'; img.style.borderRadius='8px';
+        img.src = e.data;
+        img.style.maxWidth='100%'; img.style.border='1px solid #ddd'; img.style.borderRadius='8px';
         div.appendChild(img);
       } else {
         const p = document.createElement('div');
