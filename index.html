@@ -16,8 +16,10 @@
   ul { list-style: none; padding: 0; }
   .muted { color:#517089; font-size:14px; }
 
+  /* Room code banner */
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
 
+  /* Turn order box under main content, compact and centered */
   .turnOrderBox {
     display:none; max-width:600px; margin:15px auto 0 auto;
     background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left;
@@ -27,11 +29,14 @@
   .turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
   .turnOrderList li.current::before { content:"→ "; color:#0b66b2; font-weight:700; }
 
+  /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
 
-  /* Desktop-only: make username box shorter; mobile keeps wide */
+  /* Desktop tweaks: smaller username input, instruction panel, and guess input */
   @media (min-width: 768px) {
     #usernameInput { width: 40%; }
+    .infoPanel { width: 60%; margin: 0 auto; }
+    #guessInput { width: 50%; }
   }
 
   /* Instruction panel */
@@ -39,8 +44,15 @@
     margin-top: 12px; padding:10px; border-radius:10px;
     background:#eaf5ff; border:1px solid #cfe6ff; color:#0b3f6b; text-align:left;
   }
+  .infoPanel h4 { margin:0 0 6px; color:#0b66b2; }
   .infoPanel ul { margin:0; padding-left:18px; }
   .infoPanel li { margin:4px 0; list-style: disc; }
+
+  /* Results page restart box */
+  #restartBox {
+    margin-top: 20px; background:#eaf5ff; border:1px solid #cfe6ff; border-radius:10px;
+    padding:15px; max-width:500px; margin-left:auto; margin-right:auto;
+  }
 </style>
 </head>
 <body>
@@ -54,13 +66,13 @@
     <button onclick="createRoom()">Create Room</button>
     <button onclick="joinRoomPrompt()">Join Room</button>
 
-    <!-- concise instructions -->
     <div class="infoPanel">
+      <h4>Here's how the game works:</h4>
       <ul>
         <li>Host creates a room and picks the first word/phrase.</li>
         <li>Turns alternate: draw (60s) → guess (30s).</li>
         <li>Submit anytime; timer auto-submits when it ends.</li>
-        <li>See the chain at the end. Have fun!</li>
+        <li>See the full chain at the end!</li>
       </ul>
     </div>
   </div>
@@ -72,13 +84,13 @@
     <p class="muted" id="lobbyMsg"></p>
     <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
 
-    <!-- concise instructions duplicate -->
     <div class="infoPanel">
+      <h4>Here's how the game works:</h4>
       <ul>
         <li>Host starts once everyone joins (2–15 players).</li>
         <li>Turns alternate: draw (60s) → guess (30s).</li>
         <li>Submit anytime; timer auto-submits when it ends.</li>
-        <li>Results reveal the full chain.</li>
+        <li>See the full chain at the end!</li>
       </ul>
     </div>
 
@@ -95,30 +107,26 @@
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- DRAW -->
+  <!-- DRAW (controls ABOVE canvas now) -->
   <div class="container hidden" id="drawingScreen">
     <h3 id="drawPrompt"></h3>
-    <canvas id="drawCanvas" width="720" height="460"></canvas><br>
-    <div>
+    <div style="margin-bottom:10px;">
       <button id="smallPen" onclick="setPenSize(2)">Small</button>
       <button id="mediumPen" onclick="setPenSize(6)">Medium</button>
       <button id="largePen" onclick="setPenSize(12)">Large</button>
-    </div>
-    <div style="margin-top:8px;">
       <button onclick="undo()">Undo</button>
       <button onclick="clearCanvas()">Clear</button>
       <span class="timer" id="drawTimer">60s</span>
       <button onclick="submitDrawing(false)">Submit Drawing</button>
     </div>
+    <canvas id="drawCanvas" width="720" height="460"></canvas>
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- GUESS (inputs ABOVE image now) -->
+  <!-- GUESS (inputs ABOVE image) -->
   <div class="container hidden" id="guessScreen">
     <h3>Guess the drawing!</h3>
-    <div style="margin-top:10px;">
-      <input id="guessInput" type="text" placeholder="Type your guess here" />
-    </div>
+    <input id="guessInput" type="text" placeholder="Type your guess here" />
     <div style="margin-top:8px;">
       <span class="timer" id="guessTimer">30s</span>
       <button onclick="submitGuess()">Submit Guess</button>
@@ -135,10 +143,15 @@
 
   <!-- RESULTS -->
   <div class="container hidden" id="resultsScreen">
-    <h2>Results Summary</h2>
-    <div style="font-weight:700;color:#0b66b2">Original: <span id="finalWord"></span></div>
+    <h2 style="font-size:1.6em;color:#0b66b2;">Results Summary</h2>
+    <div style="font-weight:700;color:#0b66b2;font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
     <div id="resultsList" style="text-align:left;margin-top:12px;"></div>
-    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
+
+    <div id="restartBox">
+      <p><b>Ready for another round?</b><br>
+      Restart with the same players and shuffle everyone (including the host).</p>
+      <button onclick="restartGame()">🔁 Restart Game</button>
+    </div>
   </div>
 
   <!-- Firebase (compat) -->
@@ -192,8 +205,7 @@
     setBanner(roomCode);
     db.ref('rooms/'+roomCode).set({
       host: username, players: [username], state:'lobby',
-      order: null, currentIndex: 0, gameData:{}, word:null,
-      turnStart: null
+      order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null
     });
     subscribeRoom();
     showLobby();
@@ -245,7 +257,7 @@
       const host = players[0];
       const others = shuffle(players.slice(1)); // randomize everyone except host
       const order = [host, ...others];
-      db.ref('rooms/'+roomCode).update({ order, currentIndex: 0, state: 'wordSelect', turnStart: null });
+      db.ref('rooms/'+roomCode).update({ order, currentIndex: 0, state: 'wordSelect', turnStart:null });
     });
   }
 
@@ -257,7 +269,6 @@
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
     if(!w) return alert("Pick or enter a word/phrase first");
-    // set drawing phase + timestamp so all clients can compute remaining time
     db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: Date.now() });
   }
 
@@ -271,14 +282,14 @@
       const room = snapshot.val();
       if(!room){ alert("Room closed"); location.reload(); return; }
 
-      renderTurnOrder(room); // also shows the shared countdown
+      renderTurnOrder(room);
+      startSharedTurnTicker(room);
 
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
         if(isHost) showOnly('wordSelectScreen');
         else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
-        stopSharedTurnTicker();
         return;
       }
 
@@ -286,9 +297,6 @@
       const idx = room.currentIndex || 0;
       const current = order[idx] || "";
       const myTurn = (current === username);
-
-      // start/refresh shared turn ticker on every state change
-      startSharedTurnTicker(room);
 
       if(room.state === 'drawing'){
         if(myTurn) startDrawingPhase(room, idx);
@@ -310,27 +318,20 @@
     });
   }
 
-  /* ---------- SHARED TURN COUNTDOWN (for Turn Order box) ---------- */
+  /* ---------- SHARED TURN COUNTDOWN (Turn Order box) ---------- */
   function startSharedTurnTicker(room){
     stopSharedTurnTicker();
-    updateTurnTimerLabels(room); // immediate
-    turnTicker = setInterval(()=>{
-      updateTurnTimerLabels(room);
-    }, 1000);
+    updateTurnTimerLabels(room);
+    turnTicker = setInterval(()=>updateTurnTimerLabels(room), 1000);
   }
-  function stopSharedTurnTicker(){
-    if(turnTicker){ clearInterval(turnTicker); turnTicker = null; }
-  }
-  function getPhaseDuration(state){
-    return state==='drawing' ? 60 : state==='guessing' ? 30 : 0;
-  }
+  function stopSharedTurnTicker(){ if(turnTicker){ clearInterval(turnTicker); turnTicker=null; } }
+  function getPhaseDuration(state){ return state==='drawing' ? 60 : state==='guessing' ? 30 : 0; }
   function computeRemaining(room){
     const ts = room.turnStart || 0;
     const dur = getPhaseDuration(room.state);
     if(!ts || !dur) return null;
     const elapsed = Math.floor((Date.now() - ts)/1000);
-    const remaining = Math.max(0, dur - elapsed);
-    return remaining;
+    return Math.max(0, dur - elapsed);
   }
   function updateTurnTimerLabels(room){
     const lists = document.querySelectorAll('.turnOrderList');
@@ -338,7 +339,6 @@
     const idx = room.currentIndex || 0;
     const remaining = computeRemaining(room);
     lists.forEach(list=>{
-      // rewrite with timer next to current player
       list.innerHTML = '';
       order.forEach((name,i)=>{
         const li = document.createElement('li');
@@ -348,8 +348,6 @@
       });
     });
   }
-
-  /* ---------- TURN ORDER RENDER (visibility toggle) ---------- */
   function renderTurnOrder(room){
     const boxes = document.querySelectorAll('.turnOrderBox');
     const show = (room.order || []).length > 0 && room.state !== 'lobby';
@@ -367,8 +365,7 @@
   resetCanvasBackground();
 
   let drawing=false;
-  // Store each stroke with its own size and points
-  let strokes=[]; // [{ size: number, points: [{x,y},...] }, ...]
+  let strokes=[]; // [{ size, points: [{x,y},...] }]
   let currentStroke=null;
 
   function highlightPen(btnId){
@@ -445,15 +442,8 @@
   canvas.addEventListener('touchmove',  e=>{ e.preventDefault(); moveStroke(e);  }, {passive:false});
   canvas.addEventListener('touchend',   e=>{ e.preventDefault(); endStroke();     }, {passive:false});
 
-  function undo(){
-    strokes.pop();
-    redrawAll();
-  }
-  function clearCanvas(){
-    strokes = [];
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    resetCanvasBackground();
-  }
+  function undo(){ strokes.pop(); redrawAll(); }
+  function clearCanvas(){ strokes = []; ctx.clearRect(0,0,canvas.width,canvas.height); resetCanvasBackground(); }
   function redrawAll(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     resetCanvasBackground();
@@ -462,13 +452,8 @@
       if(!pts.length) continue;
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
-      for(let i=1;i<pts.length;i++){
-        ctx.lineTo(pts[i].x, pts[i].y);
-      }
-      ctx.lineWidth = s.size;          // preserve original size per stroke
-      ctx.strokeStyle = "black";
-      ctx.lineCap = "round";
-      ctx.stroke();
+      for(let i=1;i<pts.length;i++){ ctx.lineTo(pts[i].x, pts[i].y); }
+      ctx.lineWidth = s.size; ctx.strokeStyle = "black"; ctx.lineCap = "round"; ctx.stroke();
     }
   }
 
@@ -484,13 +469,12 @@
 
   // forced=false when user clicks submit; forced=true when timer expires
   function submitDrawing(forced){
-    stopDrawTimer();
     if(!forced && strokes.length===0){
-      // guard: require at least one stroke on manual submit
+      // Do NOT reset timer. Just warn and let timer keep running.
       alert("Please add at least one stroke before submitting.");
-      startDrawTimer(); // resume timer to let them keep drawing
       return;
     }
+    stopDrawTimer();
     const dataURL = canvas.toDataURL('image/png');
     db.ref('rooms/'+roomCode).once('value').then(s=>{
       const room = s.val();
@@ -503,7 +487,7 @@
       } else {
         u['rooms/'+roomCode+'/currentIndex'] = next;
         u['rooms/'+roomCode+'/state'] = 'guessing';
-        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start guess phase timer for everyone
+        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start guess phase timer
       }
       db.ref().update(u);
     });
@@ -542,7 +526,7 @@
       } else {
         u['rooms/'+roomCode+'/currentIndex'] = next;
         u['rooms/'+roomCode+'/state'] = 'drawing';
-        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start draw phase timer for everyone
+        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start draw phase timer
       }
       db.ref().update(u);
     });
@@ -567,20 +551,48 @@
     const steps = Object.keys(room.gameData||{}).map(n=>parseInt(n,10)).sort((a,b)=>a-b);
     steps.forEach(step=>{
       const e = room.gameData[step];
-      const div = document.createElement('div');
-      div.style.marginBottom = '14px';
-      div.innerHTML = `<b>Step ${step+1} — ${e.player} (${e.type})</b><br>`;
+      const block = document.createElement('div');
+      block.style.paddingTop = '10px';
+      block.style.margin = '10px 0 18px 0';
+      block.style.borderTop = '1px dotted #c4d9ef';
+      const header = document.createElement('div');
+      header.innerHTML = `<b>Step ${step+1} — ${e.player} (${e.type})</b>`;
+      block.appendChild(header);
       if(e.type === 'draw'){
         const img = document.createElement('img');
         img.src = e.data;
-        img.style.maxWidth='100%'; img.style.border='1px solid #ddd'; img.style.borderRadius='8px';
-        div.appendChild(img);
+        img.style.maxWidth='100%';
+        img.style.border='1px solid #ddd';
+        img.style.borderRadius='8px';
+        img.style.marginTop='6px';
+        block.appendChild(img);
       } else {
         const p = document.createElement('div');
-        p.textContent = e.data; p.style.marginTop='6px';
-        div.appendChild(p);
+        p.textContent = e.data;
+        p.style.marginTop='8px';
+        block.appendChild(p);
       }
-      list.appendChild(div);
+      list.appendChild(block);
+    });
+  }
+
+  /* ---------- RESTART (shuffle everyone incl. host) ---------- */
+  function restartGame(){
+    if(!roomCode) return;
+    db.ref('rooms/'+roomCode).once('value').then(s=>{
+      const room = s.val();
+      if(!room) return;
+      const players = (room.players || []).slice();
+      const newOrder = shuffle(players); // shuffle everyone, including host
+      const u = {
+        ['rooms/'+roomCode+'/order']: newOrder,
+        ['rooms/'+roomCode+'/currentIndex']: 0,
+        ['rooms/'+roomCode+'/gameData']: {},
+        ['rooms/'+roomCode+'/word']: null,
+        ['rooms/'+roomCode+'/state']: 'wordSelect',
+        ['rooms/'+roomCode+'/turnStart']: null
+      };
+      return db.ref().update(u);
     });
   }
   </script>
