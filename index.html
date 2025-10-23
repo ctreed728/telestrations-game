@@ -31,6 +31,11 @@
 
   /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
+
+  /* Desktop-only: make username box shorter; mobile keeps wide */
+  @media (min-width: 768px) {
+    #usernameInput { width: 40%; }
+  }
 </style>
 </head>
 <body>
@@ -40,7 +45,7 @@
   <!-- HOME -->
   <div class="container" id="homeScreen">
     <h3>Enter a username:</h3>
-    <input type="text" id="usernameInput" placeholder="Your username"><br><br>
+    <input type="text" id="usernameInput" placeholder="Your username" maxlength="25"><br><br>
     <button onclick="createRoom()">Create Room</button>
     <button onclick="joinRoomPrompt()">Join Room</button>
   </div>
@@ -132,7 +137,7 @@
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null;
 
-  /* ---------- WORD LIST (sample; extend anytime) ---------- */
+  /* ---------- WORD LIST (sample) ---------- */
   const phrases = [
     "Awkward handshake","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
     "Robot yoga","Time capsule","Elephant on a skateboard","Synchronized napping","Haunted smartphone",
@@ -294,7 +299,7 @@
     });
   }
 
-  /* ---------- DRAWING ---------- */
+  /* ---------- DRAWING (mobile align + undo pen-size preservation) ---------- */
   const canvas = byId('drawCanvas');
   const ctx = canvas.getContext('2d');
 
@@ -304,7 +309,11 @@
   }
   resetCanvasBackground();
 
-  let drawing=false, strokes=[], currentStroke=[];
+  let drawing=false;
+  // Store each stroke with its own size and points to preserve sizes on undo/redraw
+  let strokes=[]; // [{ size: number, points: [{x,y},...] }, ...]
+  let currentStroke=null;
+
   function highlightPen(btnId){
     ['smallPen','mediumPen','largePen'].forEach(id=>byId(id).classList.remove('activePen'));
     byId(btnId).classList.add('activePen');
@@ -312,27 +321,63 @@
   function setPenSize(size){ penSize=size; highlightPen(size===2?'smallPen':size===6?'mediumPen':'largePen'); }
   setPenSize(6);
 
-  // Robust for mobile + Firefox (falls back to client coords)
-  function getPos(e){
+  // Scale-aware position calculation for mobile & desktop
+  function getCanvasPos(e){
     const r = canvas.getBoundingClientRect();
-    if(e.touches && e.touches.length){
-      return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top };
+    const scaleX = canvas.width  / r.width;
+    const scaleY = canvas.height / r.height;
+    let clientX, clientY;
+
+    if (e.touches && e.touches.length){
+      // Use pageX/Y then convert to client by subtracting scroll if needed
+      // clientX/clientY are also fine, but page accounts for page scroll differences
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = (e.clientX !== undefined) ? e.clientX : (e.x || 0);
+      clientY = (e.clientY !== undefined) ? e.clientY : (e.y || 0);
     }
-    const x = (e.offsetX !== undefined) ? e.offsetX : (e.clientX - r.left);
-    const y = (e.offsetY !== undefined) ? e.offsetY : (e.clientY - r.top);
+
+    const x = (clientX - r.left) * scaleX;
+    const y = (clientY - r.top)  * scaleY;
     return { x, y };
   }
-  function beginStroke(e){ drawing=true; currentStroke=[]; addPoint(e); }
-  function moveStroke(e){ if(!drawing) return; addPoint(e); }
-  function endStroke(){ if(!drawing) return; drawing=false; if(currentStroke.length) strokes.push(currentStroke); ctx.beginPath(); }
+
+  function beginStroke(e){
+    drawing = true;
+    currentStroke = { size: penSize, points: [] };
+    addPoint(e);
+  }
+  function moveStroke(e){
+    if(!drawing) return;
+    addPoint(e);
+  }
+  function endStroke(){
+    if(!drawing) return;
+    drawing = false;
+    if(currentStroke && currentStroke.points.length){
+      strokes.push(currentStroke);
+    }
+    currentStroke = null;
+    ctx.beginPath();
+  }
+
   function addPoint(e){
-    const p = getPos(e);
-    currentStroke.push(p);
-    ctx.lineWidth = penSize;
+    const p = getCanvasPos(e);
+    currentStroke.points.push(p);
+
+    ctx.lineWidth = currentStroke.size; // use stroke's own size
     ctx.lineCap = "round";
     ctx.strokeStyle = "black";
-    if(currentStroke.length === 1){ ctx.beginPath(); ctx.moveTo(p.x,p.y); }
-    else { ctx.lineTo(p.x,p.y); ctx.stroke(); }
+
+    const pts = currentStroke.points;
+    if(pts.length === 1){
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }else{
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
   }
 
   // Mouse events
@@ -345,16 +390,29 @@
   canvas.addEventListener('touchmove',  e=>{ e.preventDefault(); moveStroke(e);  }, {passive:false});
   canvas.addEventListener('touchend',   e=>{ e.preventDefault(); endStroke();     }, {passive:false});
 
-  function undo(){ strokes.pop(); redrawAll(); }
-  function clearCanvas(){ strokes = []; ctx.clearRect(0,0,canvas.width,canvas.height); resetCanvasBackground(); }
+  function undo(){
+    strokes.pop();
+    redrawAll();
+  }
+  function clearCanvas(){
+    strokes = [];
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    resetCanvasBackground();
+  }
   function redrawAll(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     resetCanvasBackground();
     for(const s of strokes){
+      const pts = s.points;
+      if(!pts.length) continue;
       ctx.beginPath();
-      s.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
-      ctx.lineWidth = penSize;
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for(let i=1;i<pts.length;i++){
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      ctx.lineWidth = s.size;          // preserve original size per stroke
       ctx.strokeStyle = "black";
+      ctx.lineCap = "round";
       ctx.stroke();
     }
   }
