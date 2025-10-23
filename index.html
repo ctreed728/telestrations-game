@@ -3,278 +3,415 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>🎨 Telestrations Multiplayer</title>
+<title>🎨 Telestrations Online Game</title>
 <style>
-  body { font-family: Arial, sans-serif; background-color: #e6f3ff; text-align: center; margin: 0; padding: 0; }
-  h1 { color: #333; margin: 20px 0; }
-  .container { max-width: 700px; margin: 20px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-  button { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; }
+  body { font-family: Arial, sans-serif; background-color: #e6f3ff; text-align: center; margin: 0; padding: 0; color:#123; }
+  h1 { color: #0b66b2; margin: 18px 0 8px; }
+  .container { max-width: 900px; margin: 12px auto; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); position: relative; }
+  button { background-color: #007bff; color: white; border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; }
   button:hover { background-color: #0056b3; }
-  input { padding: 8px; margin: 5px; width: 80%; border-radius: 8px; border: 1px solid #ccc; }
+  input { padding: 8px; margin: 5px; width: 80%; border-radius: 8px; border: 1px solid #cbd6e2; }
   canvas { border: 2px solid #007bff; border-radius: 10px; margin-top: 10px; background: white; touch-action: none; max-width: 100%; }
   .hidden { display: none; }
   ul { list-style: none; padding: 0; }
   #waitMsg { font-weight: 700; color: #333; }
   .timer { font-weight: 800; color: #0b66b2; }
+  /* Banner with room code shown on all screens (after room known) */
+  #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
+  /* Turn order box on the right, aligned with top of main content under header */
+  #orderBox {
+    display:none; position:absolute; right:18px; top:18px; width:230px;
+    background:#f7fbff; border:1px solid #d9ecff; border-radius:10px; padding:10px; text-align:left; box-shadow:0 2px 8px rgba(0,0,0,0.04);
+  }
+  #orderBox h4 { margin:0 0 8px 0; font-size:14px; color:#0b66b2; }
+  #orderList { margin:0; padding:0; }
+  #orderList li { list-style:none; margin:4px 0; font-size:14px; }
+  #orderList li.current { font-weight:800; color:#0b66b2; }
+  #orderList li.next::before { content:"→ "; color:#0b66b2; }
+  /* Make room for order box when visible */
+  .with-order { padding-right: 260px; }
+  .muted { color:#517089; font-size:14px; }
 </style>
 </head>
 <body>
-<h1>🎨 Telestrations Multiplayer</h1>
+  <h1>🎨 Telestrations Online Game</h1>
+  <div id="roomBanner">Room Code: <span id="bannerCode"></span></div>
 
-<!-- HOME -->
-<div class="container" id="homeScreen">
-  <h3>Enter your name:</h3>
-  <input type="text" id="usernameInput" placeholder="Your name"><br><br>
-  <button onclick="createRoom()">Create Room</button>
-  <button onclick="joinRoomPrompt()">Join Room</button>
-</div>
-
-<!-- LOBBY -->
-<div class="container hidden" id="lobbyScreen">
-  <h2>Room Code: <span id="roomCodeDisplay"></span></h2>
-  <p>Players Joined:</p>
-  <ul id="playerList"></ul>
-  <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
-</div>
-
-<!-- WORD PICK -->
-<div class="container hidden" id="wordSelectScreen">
-  <h3>Pick a Word or Phrase</h3>
-  <input type="text" id="customWord" placeholder="Enter custom word/phrase"><br><br>
-  <button onclick="suggestWord()">Suggest Word</button>
-  <p id="suggestedWord" style="font-weight:700;color:#0b66b2"></p>
-  <button onclick="confirmWord()">Confirm & Start Round</button>
-</div>
-
-<!-- DRAW TURN -->
-<div class="container hidden" id="drawingScreen">
-  <h3 id="drawPrompt"></h3>
-  <canvas id="drawCanvas" width="640" height="420"></canvas><br>
-  <div>
-    <button onclick="setPenSize(2)">Small</button>
-    <button onclick="setPenSize(6)">Medium</button>
-    <button onclick="setPenSize(12)">Large</button>
+  <!-- HOME -->
+  <div class="container" id="homeScreen">
+    <h3>Enter your name:</h3>
+    <input type="text" id="usernameInput" placeholder="Your name"><br><br>
+    <button onclick="createRoom()">Create Room</button>
+    <button onclick="joinRoomPrompt()">Join Room</button>
   </div>
-  <div style="margin-top:8px;">
-    <button onclick="undo()">Undo</button>
-    <button onclick="clearCanvas()">Clear</button>
-    <span style="margin:0 8px;" class="timer" id="drawTimer">60s</span>
-    <button onclick="submitDrawing()">Submit Drawing</button>
+
+  <!-- LOBBY -->
+  <div class="container hidden" id="lobbyScreen">
+    <div id="orderBox"></div> <!-- hidden in lobby; we reuse container to keep layout -->
+    <h2>Room Code: <span id="roomCodeDisplay"></span></h2>
+    <p>Players Joined:</p>
+    <ul id="playerList"></ul>
+    <p class="muted">At least <b>2 players</b> (up to <b>12</b>) are required to start the game.</p>
+    <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
   </div>
-</div>
 
-<!-- GUESS TURN -->
-<div class="container hidden" id="guessScreen">
-  <h3>Guess the drawing!</h3>
-  <img id="guessImage" style="max-width:100%;border:1px solid #ddd;border-radius:8px" />
-  <div style="margin-top:10px;">
-    <input id="guessInput" type="text" placeholder="Type your guess here" />
+  <!-- WORD PICK -->
+  <div class="container hidden" id="wordSelectScreen">
+    <div id="orderBox"></div>
+    <h3>Pick a Word or Phrase</h3>
+    <input type="text" id="customWord" placeholder="Enter custom word/phrase"><br><br>
+    <button onclick="suggestWord()">Suggest Word</button>
+    <p id="suggestedWord" style="font-weight:700;color:#0b66b2"></p>
+    <button onclick="confirmWord()">Confirm & Start Round</button>
   </div>
-  <div style="margin-top:8px;">
-    <span class="timer" id="guessTimer">30s</span>
-    <button onclick="submitGuess()">Submit Guess</button>
+
+  <!-- DRAW TURN -->
+  <div class="container hidden" id="drawingScreen">
+    <div id="orderBox"></div>
+    <h3 id="drawPrompt"></h3>
+    <canvas id="drawCanvas" width="720" height="460"></canvas><br>
+    <div>
+      <button onclick="setPenSize(2)">Small</button>
+      <button onclick="setPenSize(6)">Medium</button>
+      <button onclick="setPenSize(12)">Large</button>
+    </div>
+    <div style="margin-top:8px;">
+      <button onclick="undo()">Undo</button>
+      <button onclick="clearCanvas()">Clear</button>
+      <span style="margin:0 8px;" class="timer" id="drawTimer">60s</span>
+      <button onclick="submitDrawing()">Submit Drawing</button>
+    </div>
   </div>
-</div>
 
-<!-- WAIT -->
-<div class="container hidden" id="waitScreen">
-  <p id="waitMsg">Waiting…</p>
-</div>
+  <!-- GUESS TURN -->
+  <div class="container hidden" id="guessScreen">
+    <div id="orderBox"></div>
+    <h3>Guess the drawing!</h3>
+    <img id="guessImage" style="max-width:100%;border:1px solid #ddd;border-radius:8px" />
+    <div style="margin-top:10px;">
+      <input id="guessInput" type="text" placeholder="Type your guess here" />
+    </div>
+    <div style="margin-top:8px;">
+      <span class="timer" id="guessTimer">30s</span>
+      <button onclick="submitGuess()">Submit Guess</button>
+    </div>
+  </div>
 
-<!-- RESULTS -->
-<div class="container hidden" id="resultsScreen">
-  <h2>Results Summary</h2>
-  <div style="font-weight:700;color:#0b66b2">Original: <span id="finalWord"></span></div>
-  <div id="resultsList" style="text-align:left;margin-top:12px;"></div>
-</div>
+  <!-- WAIT -->
+  <div class="container hidden" id="waitScreen">
+    <div id="orderBox"></div>
+    <p id="waitMsg">Waiting…</p>
+  </div>
 
-<!-- Firebase compat -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- RESULTS -->
+  <div class="container hidden" id="resultsScreen">
+    <div id="orderBox"></div>
+    <h2>Results Summary</h2>
+    <div style="font-weight:700;color:#0b66b2">Original: <span id="finalWord"></span></div>
+    <div id="resultsList" style="text-align:left;margin-top:12px;"></div>
+  </div>
 
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
-  authDomain: "telestrations-game-aa386.firebaseapp.com",
-  databaseURL: "https://telestrations-game-aa386-default-rtdb.firebaseio.com/",
-  projectId: "telestrations-game-aa386",
-  storageBucket: "telestrations-game-aa386.firebasestorage.app",
-  messagingSenderId: "461499249155",
-  appId: "1:461499249155:web:c785ab9cd1c7aab44f1436"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+  <!-- Firebase compat (works on GitHub Pages) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
-let username = "", roomCode = "", isHost = false, penSize = 6;
-let drawInterval = null, guessInterval = null;
-const byId = id => document.getElementById(id);
+  <script>
+  /* ---------- FIREBASE ---------- */
+  const firebaseConfig = {
+    apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
+    authDomain: "telestrations-game-aa386.firebaseapp.com",
+    databaseURL: "https://telestrations-game-aa386-default-rtdb.firebaseio.com/",
+    projectId: "telestrations-game-aa386",
+    storageBucket: "telestrations-game-aa386.firebasestorage.app",
+    messagingSenderId: "461499249155",
+    appId: "1:461499249155:web:c785ab9cd1c7aab44f1436"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-function showOnly(id) {
-  ["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"]
-    .forEach(el => byId(el).classList.add("hidden"));
-  byId(id).classList.remove("hidden");
-}
+  /* ---------- STATE ---------- */
+  let username = "", roomCode = "", isHost = false, penSize = 6;
+  let drawInterval = null, guessInterval = null;
 
-function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+  /* ---------- WORD LIST (short sample; you can expand) ---------- */
+  const phrases = [
+    "Awkward handshake","Breakfast in bed","Lost astronaut","Surfing grandma","Invisible dog",
+    "Juggling flamingos","Couch potato","Dancing with wolves","Robot yoga","Time capsule",
+    "Elephant on a skateboard","Synchronized napping","Haunted smartphone","Midnight snack attack",
+    "Window-shopping dinosaur","Broken umbrella parade","Flying carpet commute","Secret admirer note"
+  ];
 
-/* ---------- CREATE ROOM ---------- */
-function createRoom() {
-  username = byId('usernameInput').value.trim();
-  if (!username) return alert("Please enter your name");
-  isHost = true;
-  roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const roomObj = { host: username, players: [username], state: 'lobby', order: null, currentIndex: 0, gameData: {}, word: null };
-  db.ref('rooms/' + roomCode).set(roomObj);
-  subscribeRoom();
-  showLobby();
-}
+  /* ---------- UI HELPERS ---------- */
+  const byId = id => document.getElementById(id);
+  function showOnly(id) {
+    ["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"]
+      .forEach(el => byId(el).classList.add("hidden"));
+    byId(id).classList.remove("hidden");
+  }
+  function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
 
-/* ---------- JOIN ROOM (fixed prompt) ---------- */
-function joinRoomPrompt() {
-  username = byId('usernameInput').value.trim();
-  if (!username) {
-    alert("Please enter your name first");
-    return;
+  // Always show banner when room is known
+  function setBanner(code){
+    if(!code) return;
+    byId('bannerCode').textContent = code;
+    byId('roomBanner').style.display = 'block';
   }
 
-  const code = prompt("Enter Room Code:");
-  if (!code) {
-    alert("Please enter a valid room code.");
-    return;
+  /* ---------- CREATE ROOM ---------- */
+  function createRoom() {
+    username = byId('usernameInput').value.trim();
+    if (!username) return alert("Please enter your name");
+    isHost = true;
+    roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+    setBanner(roomCode);
+
+    const roomObj = { host: username, players: [username], state: 'lobby', order: null, currentIndex: 0, gameData: {}, word: null };
+    db.ref('rooms/' + roomCode).set(roomObj);
+    subscribeRoom();
+    showLobby();
   }
 
-  roomCode = code.toUpperCase();
-  const roomRef = db.ref('rooms/' + roomCode);
+  /* ---------- JOIN ROOM (prompt) ---------- */
+  function joinRoomPrompt() {
+    username = byId('usernameInput').value.trim();
+    if (!username) {
+      alert("Please enter your name first");
+      return;
+    }
 
-  roomRef.once('value')
-    .then(snapshot => {
-      if (!snapshot.exists()) {
-        alert("Room not found. Double-check the code and try again.");
+    const code = prompt("Enter Room Code:");
+    if (!code) {
+      alert("Please enter a valid room code.");
+      return;
+    }
+
+    roomCode = code.toUpperCase();
+    setBanner(roomCode);
+    const roomRef = db.ref('rooms/' + roomCode);
+
+    roomRef.once('value')
+      .then(snapshot => {
+        if (!snapshot.exists()) {
+          alert("Room not found. Double-check the code and try again.");
+          return;
+        }
+        const room = snapshot.val();
+        let players = room.players || [];
+        if (!players.includes(username)) players.push(username);
+        return roomRef.child('players').set(players);
+      })
+      .then(() => {
+        isHost = false;
+        subscribeRoom();
+        showLobby();
+      })
+      .catch(error => {
+        console.error("Join Room Error:", error);
+        alert("There was an error joining the room. Check console for details.");
+      });
+  }
+
+  /* ---------- LOBBY ---------- */
+  function showLobby() {
+    showOnly('lobbyScreen');
+    byId('roomCodeDisplay').innerText = roomCode;
+    const listEl = byId('playerList');
+    db.ref('rooms/' + roomCode + '/players').on('value', snapshot => {
+      const list = snapshot.val() || [];
+      listEl.innerHTML = list.map(p => `<li>${p}</li>`).join("");
+      const canStart = isHost && list.length >= 2 && list.length <= 12;
+      byId('startGameBtn').classList.toggle('hidden', !canStart);
+    });
+  }
+
+  /* ---------- START GAME (host first, others randomized) ---------- */
+  function startGame() {
+    db.ref('rooms/' + roomCode).once('value').then(snap => {
+      const room = snap.val();
+      const players = room.players || [];
+      const host = players[0];
+      const others = shuffle(players.slice(1)); // randomize everyone except host
+      const order = [host, ...others];
+      db.ref('rooms/' + roomCode).update({ order, currentIndex: 0, state: 'wordSelect' });
+    });
+  }
+
+  /* ---------- WORD PICK ---------- */
+  function suggestWord() {
+    const w = phrases[Math.floor(Math.random() * phrases.length)];
+    byId('suggestedWord').innerText = w;
+  }
+  function confirmWord() {
+    const custom = byId('customWord').value.trim();
+    const word = custom || byId('suggestedWord').innerText;
+    if (!word) return alert("Pick or enter a word/phrase first");
+    db.ref('rooms/' + roomCode).update({ word, state: 'drawing', currentIndex: 0 });
+  }
+
+  /* ---------- SUBSCRIBE ROOM ---------- */
+  let roomListenerAttached = false;
+  function subscribeRoom(){
+    if (roomListenerAttached) return;
+    roomListenerAttached = true;
+    db.ref('rooms/' + roomCode).on('value', snapshot => {
+      const room = snapshot.val();
+      if (!room) { alert("Room closed"); location.reload(); return; }
+
+      renderOrder(room); // update the order box (only shows after start)
+
+      if (room.state === 'lobby') return showLobby();
+
+      if (room.state === 'wordSelect') {
+        if (isHost) showOnly('wordSelectScreen');
+        else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
         return;
       }
-      const room = snapshot.val();
-      let players = room.players || [];
-      if (!players.includes(username)) players.push(username);
-      return roomRef.child('players').set(players);
-    })
-    .then(() => {
-      isHost = false;
-      subscribeRoom();
-      showLobby();
-    })
-    .catch(error => {
-      console.error("Join Room Error:", error);
-      alert("There was an error joining the room. Check console for details.");
-    });
-}
 
-/* ---------- LOBBY ---------- */
-function showLobby() {
-  showOnly('lobbyScreen');
-  byId('roomCodeDisplay').innerText = roomCode;
-  const listEl = byId('playerList');
-  db.ref('rooms/' + roomCode + '/players').on('value', snapshot => {
-    const list = snapshot.val() || [];
-    listEl.innerHTML = list.map(p => `<li>${p}</li>`).join("");
-    const canStart = isHost && list.length >= 2 && list.length <= 12;
-    byId('startGameBtn').classList.toggle('hidden', !canStart);
-  });
-}
+      if (room.state === 'drawing' || room.state === 'guessing') {
+        const order = room.order || [];
+        const idx = room.currentIndex || 0;
+        const currentPlayer = order[idx] || "";
+        const isMyTurn = (currentPlayer === username);
 
-/* ---------- START GAME ---------- */
-function startGame() {
-  db.ref('rooms/' + roomCode).once('value').then(snap => {
-    const room = snap.val();
-    const players = room.players || [];
-    const host = players[0];
-    const others = shuffle(players.slice(1));
-    const order = [host, ...others];
-    db.ref('rooms/' + roomCode).update({ order, currentIndex: 0, state: 'wordSelect' });
-  });
-}
-
-/* ---------- WORD PICK ---------- */
-const phrases = ["Awkward handshake","Breakfast in bed","Lost astronaut","Surfing grandma","Invisible dog","Juggling flamingos"];
-function suggestWord() {
-  const w = phrases[Math.floor(Math.random() * phrases.length)];
-  byId('suggestedWord').innerText = w;
-}
-function confirmWord() {
-  const custom = byId('customWord').value.trim();
-  const word = custom || byId('suggestedWord').innerText;
-  if (!word) return alert("Pick or enter a word/phrase first");
-  db.ref('rooms/' + roomCode).update({ word, state: 'drawing', currentIndex: 0 });
-}
-
-/* ---------- SUBSCRIBE ROOM ---------- */
-let roomListenerAttached = false;
-function subscribeRoom(){
-  if (roomListenerAttached) return;
-  roomListenerAttached = true;
-  db.ref('rooms/' + roomCode).on('value', snapshot => {
-    const room = snapshot.val();
-    if (!room) { alert("Room closed"); location.reload(); return; }
-
-    if (room.state === 'lobby') return showLobby();
-
-    if (room.state === 'wordSelect') {
-      if (isHost) showOnly('wordSelectScreen');
-      else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
-      return;
-    }
-
-    if (room.state === 'drawing' || room.state === 'guessing') {
-      const order = room.order || [];
-      const idx = room.currentIndex || 0;
-      const currentPlayer = order[idx] || "";
-      const isMyTurn = (currentPlayer === username);
-      if (room.state === 'drawing') {
-        if (isMyTurn) startDrawingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${currentPlayer} is drawing…`; showOnly('waitScreen'); }
-      } else {
-        if (isMyTurn) startGuessingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${currentPlayer} is guessing…`; showOnly('waitScreen'); }
+        if (room.state === 'drawing') {
+          if (isMyTurn) startDrawingPhase(room, idx);
+          else { byId('waitMsg').innerText = `${currentPlayer} is drawing…`; showOnly('waitScreen'); }
+        } else {
+          if (isMyTurn) startGuessingPhase(room, idx);
+          else { byId('waitMsg').innerText = `${currentPlayer} is guessing…`; showOnly('waitScreen'); }
+        }
+        return;
       }
-      return;
-    }
 
-    if (room.state === 'results') return showResults(room);
-  });
-}
+      if (room.state === 'results') return showResults(room);
+    });
+  }
 
-/* ---------- CANVAS ---------- */
-const canvas = byId('drawCanvas');
-const ctx = canvas.getContext('2d');
-function resetCanvasBackground(){ ctx.fillStyle="white"; ctx.fillRect(0,0,canvas.width,canvas.height); }
-resetCanvasBackground();
-let drawing=false, strokes=[], currentStroke=[];
-function setPenSize(size){ penSize=size; }
-function getPos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.offsetX!==undefined)?e.offsetX:e.touches[0].clientX-r.left,y:(e.offsetY!==undefined)?e.offsetY:e.touches[0].clientY-r.top}; }
-function beginStroke(e){ drawing=true; currentStroke=[]; addPoint(e); }
-function moveStroke(e){ if(!drawing)return; addPoint(e); }
-function endStroke(){ if(!drawing)return; drawing=false; if(currentStroke.length)strokes.push(currentStroke); ctx.beginPath(); }
-function addPoint(e){ const p=getPos(e); currentStroke.push(p); ctx.lineWidth=penSize; ctx.lineCap="round"; ctx.strokeStyle="black"; if(currentStroke.length===1){ctx.beginPath();ctx.moveTo(p.x,p.y);}else{ctx.lineTo(p.x,p.y);ctx.stroke();}}
-canvas.addEventListener('mousedown',beginStroke);
-canvas.addEventListener('mousemove',moveStroke);
-canvas.addEventListener('mouseup',endStroke);
-canvas.addEventListener('mouseleave',endStroke);
-canvas.addEventListener('touchstart',e=>{e.preventDefault();beginStroke(e);},{passive:false});
-canvas.addEventListener('touchmove',e=>{e.preventDefault();moveStroke(e);},{passive:false});
-canvas.addEventListener('touchend',e=>{e.preventDefault();endStroke();},{passive:false});
-function undo(){strokes.pop();redrawAll();}
-function clearCanvas(){strokes=[];ctx.clearRect(0,0,canvas.width,canvas.height);resetCanvasBackground();}
-function redrawAll(){ctx.clearRect(0,0,canvas.width,canvas.height);resetCanvasBackground();for(const s of strokes){ctx.beginPath();s.forEach((p,i)=>{if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});ctx.lineWidth=penSize;ctx.strokeStyle="black";ctx.stroke();}}
+  /* ---------- ORDER BOX RENDER ---------- */
+  function renderOrder(room){
+    const wrappers = [
+      'lobbyScreen','wordSelectScreen','drawingScreen','guessScreen','waitScreen','resultsScreen'
+    ];
+    // We will show the order box only after the game starts (order exists)
+    const shouldShow = Array.isArray(room.order) && room.order.length > 0 && room.state !== 'lobby';
 
-/* ---------- DRAWING / GUESSING ---------- */
-function startDrawingPhase(room,idx){showOnly('drawingScreen');strokes=[];ctx.clearRect(0,0,canvas.width,canvas.height);resetCanvasBackground();byId('drawPrompt').innerText=(idx===0)?`Draw the word/phrase: "${room.word}"`:`Draw this phrase: "${room.gameData[idx-1].data}"`;startDrawTimer();}
-function submitDrawing(){stopDrawTimer();const dataURL=canvas.toDataURL('image/png');db.ref('rooms/'+roomCode).once('value').then(snap=>{const room=snap.val();const idx=room.currentIndex||0;const updates={};updates['rooms/'+roomCode+'/gameData/'+idx]={type:'draw',data:dataURL,player:username};const nextIdx=idx+1;if(nextIdx>=(room.order||[]).length)updates['rooms/'+roomCode+'/state']='results';else{updates['rooms/'+roomCode+'/currentIndex']=nextIdx;updates['rooms/'+roomCode+'/state']='guessing';}db.ref().update(updates);});}
-function startDrawTimer(){let t=60;byId('drawTimer').innerText=t+'s';drawInterval=setInterval(()=>{t--;byId('drawTimer').innerText=t+'s';if(t<=0)submitDrawing();},1000);}
-function stopDrawTimer(){if(drawInterval){clearInterval(drawInterval);drawInterval=null;byId('drawTimer').innerText='60s';}}
-function startGuessingPhase(room,idx){showOnly('guessScreen');const prev=room.gameData[idx-1];byId('guessImage').src=prev.data;byId('guessInput').value='';startGuessTimer();}
-function submitGuess(){stopGuessTimer();const guess=(byId('guessInput').value||'').trim()||'No guess';db.ref('rooms/'+roomCode).once('value').then(snap=>{const room=snap.val();const idx=room.currentIndex||0;const updates={};updates['rooms/'+roomCode+'/gameData/'+idx]={type:'guess',data:guess,player:username};const nextIdx=idx+1;if(nextIdx>=(room.order||[]).length)updates['rooms/'+roomCode+'/state']='results';else{updates['rooms/'+roomCode+'/currentIndex']=nextIdx;updates['rooms/'+roomCode+'/state']='drawing';}db.ref().update(updates);});}
-function startGuessTimer(){let t=30;byId('guessTimer').innerText=t+'s';guessInterval=setInterval(()=>{t--;byId('guessTimer').innerText=t+'s';if(t<=0)submitGuess();},1000);}
-function stopGuessTimer(){if(guessInterval){clearInterval(guessInterval);guessInterval=null;byId('guessTimer').innerText='30s';}}
-function showResults(room){showOnly('resultsScreen');byId('finalWord').innerText=room.word||'';const list=byId('resultsList');list.innerHTML='';const steps=Object.keys(room.gameData||{}).map(n=>parseInt(n,10)).sort((a,b)=>a-b);steps.forEach(step=>{const e=room.gameData[step];const div=document.createElement('div');div.innerHTML=`<b>Step ${step+1} — ${e.player} (${e.type})</b><br>`;if(e.type==='draw'){const img=document.createElement('img');img.src=e.data;img.style.maxWidth='100%';div.appendChild(img);}else{const p=document.createElement('div');p.textContent=e.data;div.appendChild(p);}list.appendChild(div);});}
-</script>
+    wrappers.forEach(id=>{
+      const container = byId(id);
+      if (!container) return;
+      const box = container.querySelector('#orderBox');
+      if (!box) return;
+
+      if (!shouldShow) {
+        box.style.display = 'none';
+        container.classList.remove('with-order');
+        return;
+      }
+
+      const idx = room.currentIndex || 0;
+      const order = room.order || [];
+      let html = '<h4>Turn Order</h4><ul id="orderList">';
+      order.forEach((name,i)=>{
+        const cls = (i===idx) ? 'current' : (i===idx+1 ? 'next' : '');
+        html += `<li class="${cls}">${i===idx ? '🔹 ' : ''}${name}</li>`;
+      });
+      html += '</ul>';
+      box.innerHTML = html;
+      box.style.display = 'block';
+      container.classList.add('with-order');
+    });
+  }
+
+  /* ---------- CANVAS ---------- */
+  const canvas = byId('drawCanvas');
+  const ctx = canvas.getContext('2d');
+  function resetCanvasBackground(){ ctx.fillStyle="white"; ctx.fillRect(0,0,canvas.width,canvas.height); }
+  resetCanvasBackground();
+  let drawing=false, strokes=[], currentStroke=[];
+  function setPenSize(size){ penSize=size; }
+  function getPos(e){ const r=canvas.getBoundingClientRect(); return {x:(e.offsetX!==undefined)?e.offsetX:(e.touches?e.touches[0].clientX-r.left:0), y:(e.offsetY!==undefined)?e.offsetY:(e.touches?e.touches[0].clientY-r.top:0)}; }
+  function beginStroke(e){ drawing=true; currentStroke=[]; addPoint(e); }
+  function moveStroke(e){ if(!drawing)return; addPoint(e); }
+  function endStroke(){ if(!drawing)return; drawing=false; if(currentStroke.length)strokes.push(currentStroke); ctx.beginPath(); }
+  function addPoint(e){ const p=getPos(e); currentStroke.push(p); ctx.lineWidth=penSize; ctx.lineCap="round"; ctx.strokeStyle="black"; if(currentStroke.length===1){ctx.beginPath();ctx.moveTo(p.x,p.y);}else{ctx.lineTo(p.x,p.y);ctx.stroke();}}
+  canvas.addEventListener('mousedown',beginStroke);
+  canvas.addEventListener('mousemove',moveStroke);
+  canvas.addEventListener('mouseup',endStroke);
+  canvas.addEventListener('mouseleave',endStroke);
+  canvas.addEventListener('touchstart',e=>{e.preventDefault();beginStroke(e);},{passive:false});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();moveStroke(e);},{passive:false});
+  canvas.addEventListener('touchend',e=>{e.preventDefault();endStroke();},{passive:false});
+  function undo(){strokes.pop();redrawAll();}
+  function clearCanvas(){strokes=[];ctx.clearRect(0,0,canvas.width,canvas.height);resetCanvasBackground();}
+  function redrawAll(){ctx.clearRect(0,0,canvas.width,canvas.height);resetCanvasBackground();for(const s of strokes){ctx.beginPath();s.forEach((p,i)=>{if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});ctx.lineWidth=penSize;ctx.strokeStyle="black";ctx.stroke();}}
+
+  /* ---------- DRAWING / GUESSING ---------- */
+  function startDrawingPhase(room,idx){
+    showOnly('drawingScreen');
+    strokes=[]; ctx.clearRect(0,0,canvas.width,canvas.height); resetCanvasBackground();
+    byId('drawPrompt').innerText = (idx===0) ? `Draw the word/phrase: "${room.word}"` : `Draw this phrase: "${room.gameData[idx-1].data}"`;
+    startDrawTimer();
+  }
+  function submitDrawing(){
+    stopDrawTimer();
+    const dataURL=canvas.toDataURL('image/png');
+    db.ref('rooms/'+roomCode).once('value').then(snap=>{
+      const room=snap.val(); const idx=room.currentIndex||0; const updates={};
+      updates['rooms/'+roomCode+'/gameData/'+idx]={type:'draw',data:dataURL,player:username};
+      const nextIdx=idx+1;
+      if(nextIdx>=(room.order||[]).length) updates['rooms/'+roomCode+'/state']='results';
+      else { updates['rooms/'+roomCode+'/currentIndex']=nextIdx; updates['rooms/'+roomCode+'/state']='guessing'; }
+      db.ref().update(updates);
+    });
+  }
+  function startDrawTimer(){ let t=60; byId('drawTimer').innerText=t+'s'; drawInterval=setInterval(()=>{t--;byId('drawTimer').innerText=t+'s'; if(t<=0)submitDrawing();},1000); }
+  function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
+
+  function startGuessingPhase(room,idx){
+    showOnly('guessScreen');
+    const prev=room.gameData[idx-1];
+    byId('guessImage').src = prev?.data || '';
+    byId('guessInput').value='';
+    startGuessTimer();
+  }
+  function submitGuess(){
+    stopGuessTimer();
+    const guess=(byId('guessInput').value||'').trim()||'No guess';
+    db.ref('rooms/'+roomCode).once('value').then(snap=>{
+      const room=snap.val(); const idx=room.currentIndex||0; const updates={};
+      updates['rooms/'+roomCode+'/gameData/'+idx]={type:'guess',data:guess,player:username};
+      const nextIdx=idx+1;
+      if(nextIdx>=(room.order||[]).length) updates['rooms/'+roomCode+'/state']='results';
+      else { updates['rooms/'+roomCode+'/currentIndex']=nextIdx; updates['rooms/'+roomCode+'/state']='drawing'; }
+      db.ref().update(updates);
+    });
+  }
+  function startGuessTimer(){ let t=30; byId('guessTimer').innerText=t+'s'; guessInterval=setInterval(()=>{t--;byId('guessTimer').innerText=t+'s'; if(t<=0)submitGuess();},1000); }
+  function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
+
+  /* ---------- RESULTS ---------- */
+  function showResults(room){
+    showOnly('resultsScreen');
+    byId('finalWord').innerText = room.word || '';
+    const list = byId('resultsList');
+    list.innerHTML = '';
+    const steps = Object.keys(room.gameData||{}).map(n=>parseInt(n,10)).sort((a,b)=>a-b);
+    steps.forEach(step=>{
+      const e = room.gameData[step];
+      const div = document.createElement('div');
+      div.style.marginBottom='14px';
+      div.innerHTML = `<b>Step ${step+1} — ${e.player} (${e.type})</b><br>`;
+      if (e.type === 'draw') {
+        const img = document.createElement('img');
+        img.src = e.data; img.style.maxWidth='100%'; img.style.border='1px solid #ddd'; img.style.borderRadius='8px';
+        div.appendChild(img);
+      } else {
+        const p = document.createElement('div');
+        p.textContent = e.data; p.style.marginTop='6px';
+        div.appendChild(p);
+      }
+      list.appendChild(div);
+    });
+  }
+  </script>
 </body>
 </html>
