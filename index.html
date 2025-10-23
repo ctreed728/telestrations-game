@@ -19,7 +19,7 @@
   /* Room code banner */
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
 
-  /* Turn order box under main content, compact and centered */
+  /* Turn order box */
   .turnOrderBox {
     display:none; max-width:600px; margin:15px auto 0 auto;
     background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left;
@@ -32,7 +32,7 @@
   /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
 
-  /* Desktop tweaks: smaller username input, instruction panel, and guess input */
+  /* Desktop tweaks */
   @media (min-width: 768px) {
     #usernameInput { width: 40%; }
     .infoPanel { width: 60%; margin: 0 auto; }
@@ -44,14 +44,19 @@
     margin-top: 12px; padding:10px; border-radius:10px;
     background:#eaf5ff; border:1px solid #cfe6ff; color:#0b3f6b; text-align:left;
   }
-  .infoPanel h4 { margin:0 0 6px; color:#0b66b2; }
+  .infoPanel h4 { margin:0 0 6px; color:#0b66b2; text-align:center; }
   .infoPanel ul { margin:0; padding-left:18px; }
   .infoPanel li { margin:4px 0; list-style: disc; }
 
-  /* Results page restart box */
+  /* Results restart box */
   #restartBox {
     margin-top: 20px; background:#eaf5ff; border:1px solid #cfe6ff; border-radius:10px;
     padding:15px; max-width:500px; margin-left:auto; margin-right:auto;
+  }
+
+  /* Mobile two-row drawing controls */
+  @media (max-width: 767px) {
+    #drawControlsTop, #drawControlsBottom { display:flex; justify-content:center; flex-wrap:wrap; gap:6px; }
   }
 </style>
 </head>
@@ -107,13 +112,15 @@
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- DRAW (controls ABOVE canvas now) -->
+  <!-- DRAW -->
   <div class="container hidden" id="drawingScreen">
     <h3 id="drawPrompt"></h3>
-    <div style="margin-bottom:10px;">
+    <div id="drawControlsTop">
       <button id="smallPen" onclick="setPenSize(2)">Small</button>
       <button id="mediumPen" onclick="setPenSize(6)">Medium</button>
       <button id="largePen" onclick="setPenSize(12)">Large</button>
+    </div>
+    <div id="drawControlsBottom" style="margin-top:8px;">
       <button onclick="undo()">Undo</button>
       <button onclick="clearCanvas()">Clear</button>
       <span class="timer" id="drawTimer">60s</span>
@@ -123,7 +130,7 @@
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- GUESS (inputs ABOVE image) -->
+  <!-- GUESS -->
   <div class="container hidden" id="guessScreen">
     <h3>Guess the drawing!</h3>
     <input id="guessInput" type="text" placeholder="Type your guess here" />
@@ -176,13 +183,22 @@
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
 
-  /* ---------- WORD LIST (sample) ---------- */
+  /* ---------- WORD LIST (expanded) ---------- */
   const phrases = [
-    "Awkward handshake","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
-    "Robot yoga","Time capsule","Elephant on a skateboard","Synchronized napping","Haunted smartphone",
-    "Window-shopping dinosaur","Broken umbrella parade","Flying carpet commute","Secret admirer note",
-    "Lost astronaut","Backwards clock","Talking mailbox","Walking on eggshells","Tickled pink",
-    "Rocket-powered shoes","Barking up the wrong tree","Two peas in a pod","Fish out of water"
+    "Barking up the wrong tree","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
+    "Robot yoga","Haunted smartphone","Fish out of water","Jumping the gun","Raining cats and dogs",
+    "Time traveler","Elephant on a skateboard","Flying carpet commute","Secret admirer note",
+    "Backwards clock","Talking mailbox","Walking on eggshells","Tickled pink","Elephant in the room",
+    "Rocket-powered shoes","Bulls in a china shop","Two peas in a pod","All ears","Cold feet",
+    "Counting sheep","Cat got your tongue","Piece of cake","Hold your horses","Spill the beans",
+    "Pigs might fly","Monkey business","Let the cat out of the bag","Crocodile tears","Once in a blue moon",
+    "Through the grapevine","Burning the midnight oil","Under the weather","Kick the bucket",
+    "Hit the hay","Break a leg","Bite the bullet","When pigs fly","Bend over backwards","Go the extra mile",
+    "Skeleton in the closet","Ballpark figure","Birds of a feather","A blessing in disguise",
+    "Cut to the chase","The last straw","Take with a grain of salt","On thin ice","Go with the flow",
+    "Caught red-handed","Out of the blue","Head in the clouds","The early bird","No stone unturned",
+    "Out of left field","Throw in the towel","Up in the air","Silver lining","Burning bridges",
+    "In hot water","By the skin of your teeth"
   ];
 
   /* ---------- UTIL ---------- */
@@ -336,6 +352,7 @@
   function updateTurnTimerLabels(room){
     const lists = document.querySelectorAll('.turnOrderList');
     const order = room.order || [];
+    aconst = 0;
     const idx = room.currentIndex || 0;
     const remaining = computeRemaining(room);
     lists.forEach(list=>{
@@ -464,13 +481,13 @@
     byId('drawPrompt').innerText = (idx===0)
       ? `Draw the word/phrase: "${room.word}"`
       : `Draw this phrase: "${room.gameData[idx-1].data}"`;
-    startDrawTimer();
+    startDrawTimer(room); // pass room to sync from turnStart
   }
 
   // forced=false when user clicks submit; forced=true when timer expires
   function submitDrawing(forced){
     if(!forced && strokes.length===0){
-      // Do NOT reset timer. Just warn and let timer keep running.
+      // Do NOT reset timer. Just warn; timer continues (synced by turnStart).
       alert("Please add at least one stroke before submitting.");
       return;
     }
@@ -493,13 +510,17 @@
     });
   }
 
-  function startDrawTimer(){
-    let t = 60;
-    byId('drawTimer').innerText = t + 's';
-    drawInterval = setInterval(()=>{
-      t--; byId('drawTimer').innerText = t + 's';
-      if(t<=0) submitDrawing(true);
-    },1000);
+  function startDrawTimer(room){
+    stopDrawTimer(); // ensure no duplicate intervals
+    const start = room.turnStart || Date.now(); // fallback for safety
+    const duration = 60;
+    function tick(){
+      const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
+      byId('drawTimer').innerText = remaining + 's';
+      if(remaining <= 0){ submitDrawing(true); }
+    }
+    tick();
+    drawInterval = setInterval(tick, 1000);
   }
   function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
 
@@ -509,12 +530,18 @@
     const prev = room.gameData[idx-1];
     byId('guessImage').src = prev?.data || '';
     byId('guessInput').value = '';
-    startGuessTimer();
+    startGuessTimer(room);
   }
 
   function submitGuess(){
+    // If empty, warn but DO NOT stop or reset timer; just let it continue
+    const val = (byId('guessInput').value || '').trim();
+    if(!val){
+      alert("Please type a guess (or wait for the timer to auto-submit).");
+      return; // keep local timer running; shared timer unaffected
+    }
     stopGuessTimer();
-    const g = (byId('guessInput').value || '').trim() || 'No guess';
+    const g = val;
     db.ref('rooms/'+roomCode).once('value').then(s=>{
       const room = s.val();
       const idx = room.currentIndex || 0;
@@ -532,13 +559,36 @@
     });
   }
 
-  function startGuessTimer(){
-    let t = 30;
-    byId('guessTimer').innerText = t + 's';
-    guessInterval = setInterval(()=>{
-      t--; byId('guessTimer').innerText = t + 's';
-      if(t<=0) submitGuess();
-    },1000);
+  function startGuessTimer(room){
+    stopGuessTimer();
+    const start = room.turnStart || Date.now();
+    const duration = 30;
+    function tick(){
+      const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
+      byId('guessTimer').innerText = remaining + 's';
+      if(remaining <= 0){
+        // auto-submit "No guess" on timeout
+        byId('guessInput').value = '';
+        stopGuessTimer();
+        db.ref('rooms/'+roomCode).once('value').then(s=>{
+          const room = s.val();
+          const idx = room.currentIndex || 0;
+          const u = {};
+          u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
+          const next = idx + 1;
+          if(next >= (room.order||[]).length){
+            u['rooms/'+roomCode+'/state'] = 'results';
+          } else {
+            u['rooms/'+roomCode+'/currentIndex'] = next;
+            u['rooms/'+roomCode+'/state'] = 'drawing';
+            u['rooms/'+roomCode+'/turnStart'] = Date.now();
+          }
+          db.ref().update(u);
+        });
+      }
+    }
+    tick();
+    guessInterval = setInterval(tick, 1000);
   }
   function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
 
@@ -552,8 +602,8 @@
     steps.forEach(step=>{
       const e = room.gameData[step];
       const block = document.createElement('div');
-      block.style.paddingTop = '10px';
-      block.style.margin = '10px 0 18px 0';
+      block.style.paddingTop = '12px';
+      block.style.margin = '14px 0 22px 0';
       block.style.borderTop = '1px dotted #c4d9ef';
       const header = document.createElement('div');
       header.innerHTML = `<b>Step ${step+1} — ${e.player} (${e.type})</b>`;
@@ -564,12 +614,12 @@
         img.style.maxWidth='100%';
         img.style.border='1px solid #ddd';
         img.style.borderRadius='8px';
-        img.style.marginTop='6px';
+        img.style.marginTop='8px';
         block.appendChild(img);
       } else {
         const p = document.createElement('div');
         p.textContent = e.data;
-        p.style.marginTop='8px';
+        p.style.marginTop='10px';
         block.appendChild(p);
       }
       list.appendChild(block);
