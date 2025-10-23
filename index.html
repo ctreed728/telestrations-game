@@ -1,196 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🎨 Telestrations Multiplayer</title>
-<style>
-  body { font-family: Arial, sans-serif; background-color: #e6f3ff; text-align: center; margin: 0; padding: 0; }
-  h1 { color: #333; margin-top: 20px; }
-  .container { max-width: 600px; margin: 20px auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-  button { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; }
-  button:hover { background-color: #0056b3; }
-  input { padding: 8px; margin: 5px; width: 80%; border-radius: 8px; border: 1px solid #ccc; }
-  canvas { border: 2px solid #007bff; border-radius: 10px; margin-top: 10px; background: white; touch-action: none; }
-  .hidden { display: none; }
-  #penSizes button { margin: 2px; padding: 5px 8px; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎨 Telestrations Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #d9ecff;
+      color: #222;
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+    }
+    input, button {
+      padding: 0.6rem;
+      margin: 0.4rem;
+      font-size: 1rem;
+      border-radius: 0.4rem;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #status {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-<h1>🎨 Telestrations Multiplayer</h1>
+  <h1>🎨 Telestrations Game</h1>
+  <div>
+    <input id="usernameInput" type="text" placeholder="Enter your username" />
+    <br />
+    <button id="createRoomBtn">Create Room</button>
+    <button id="joinRoomBtn">Join Room</button>
+  </div>
+  <div>
+    <input id="roomCodeInput" type="text" placeholder="Enter room code" />
+  </div>
+  <div id="status">Ready</div>
 
-<div class="container" id="homeScreen">
-  <h3>Enter your name:</h3>
-  <input type="text" id="usernameInput" placeholder="Your name"><br><br>
-  <button onclick="createRoom()">Create Room</button>
-  <button onclick="joinRoomPrompt()">Join Room</button>
-</div>
+  <script type="module">
+    // Import Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getDatabase, ref, set, get, child, update, push, onValue } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
-<div class="container hidden" id="lobbyScreen">
-  <h2>Room Code: <span id="roomCodeDisplay"></span></h2>
-  <p>Players Joined:</p>
-  <ul id="playerList"></ul>
-  <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
-</div>
+    // Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
+      authDomain: "telestrations-game-aa386.firebaseapp.com",
+      projectId: "telestrations-game-aa386",
+      storageBucket: "telestrations-game-aa386.firebasestorage.app",
+      messagingSenderId: "461499249155",
+      appId: "1:461499249155:web:c785ab9cd1c7aab44f1436",
+      databaseURL: "https://telestrations-game-aa386-default-rtdb.firebaseio.com/"
+    };
 
-<div class="container hidden" id="wordSelectScreen">
-  <h3>Pick a Word or Phrase</h3>
-  <input type="text" id="customWord" placeholder="Enter custom word/phrase"><br><br>
-  <button onclick="suggestWord()">Suggest Word</button>
-  <p id="suggestedWord"></p><br>
-  <button onclick="confirmWord()">Confirm & Start Round</button>
-</div>
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-<div class="container hidden" id="drawingScreen">
-  <h3 id="drawPrompt"></h3>
-  <canvas id="drawCanvas" width="400" height="300"></canvas><br>
-  <div id="penSizes">
-    <button onclick="setPenSize(2)">Small</button>
-    <button onclick="setPenSize(5)">Medium</button>
-    <button onclick="setPenSize(10)">Large</button>
-  </div><br>
-  <button onclick="undo()">Undo</button>
-  <button onclick="clearCanvas()">Clear</button><br><br>
-  <button onclick="submitDrawing()">Submit</button>
-  <p id="timerDisplay"></p>
-</div>
+    const usernameInput = document.getElementById("usernameInput");
+    const roomCodeInput = document.getElementById("roomCodeInput");
+    const createRoomBtn = document.getElementById("createRoomBtn");
+    const joinRoomBtn = document.getElementById("joinRoomBtn");
+    const statusDiv = document.getElementById("status");
 
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
-<script>
-/* ---------- FIREBASE CONFIG ---------- */
-const firebaseConfig = {
-  apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
-  authDomain: "telestrations-game-aa386.firebaseapp.com",
-  databaseURL: "https://telestrations-game-aa386-default-rtdb.firebaseio.com/",
-  projectId: "telestrations-game-aa386",
-  storageBucket: "telestrations-game-aa386.firebasestorage.app",
-  messagingSenderId: "461499249155",
-  appId: "1:461499249155:web:c785ab9cd1c7aab44f1436"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+    // Generate random 6-letter room code
+    function generateRoomCode() {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      let code = "";
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
 
-/* ---------- GAME LOGIC ---------- */
-let username = "";
-let roomCode = "";
-let isHost = false;
-let players = [];
-let penSize = 5;
+    async function createRoom() {
+      const username = usernameInput.value.trim();
+      if (!username) {
+        alert("Enter a username first!");
+        return;
+      }
 
-function createRoom() {
-  username = document.getElementById('usernameInput').value.trim();
-  if (!username) return alert("Please enter your name");
-  isHost = true;
-  roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-  db.ref('rooms/' + roomCode).set({ host: username, players: [username], state: 'lobby' });
-  showLobby();
-}
+      const roomCode = generateRoomCode();
+      const roomRef = ref(db, "rooms/" + roomCode);
+      await set(roomRef, {
+        host: username,
+        players: { [username]: { role: "host" } },
+        createdAt: Date.now()
+      });
 
-function joinRoomPrompt() {
-  username = document.getElementById('usernameInput').value.trim();
-  if (!username) return alert("Please enter your name");
-  const code = prompt("Enter Room Code:").toUpperCase();
-  if (!code) return;
-  roomCode = code;
-  const playerRef = db.ref('rooms/' + roomCode + '/players');
-  playerRef.once('value').then(snapshot => {
-    const data = snapshot.val() || [];
-    data.push(username);
-    playerRef.set(data);
-    showLobby();
-  });
-}
+      statusDiv.textContent = `Room created: ${roomCode}`;
+      console.log("✅ Room created:", roomCode);
+    }
 
-function showLobby() {
-  document.getElementById('homeScreen').classList.add('hidden');
-  document.getElementById('lobbyScreen').classList.remove('hidden');
-  document.getElementById('roomCodeDisplay').innerText = roomCode;
-  const playerListEl = document.getElementById('playerList');
-  db.ref('rooms/' + roomCode + '/players').on('value', snapshot => {
-    const list = snapshot.val() || [];
-    playerListEl.innerHTML = "";
-    list.forEach(p => {
-      const li = document.createElement('li');
-      li.innerText = p;
-      playerListEl.appendChild(li);
+    async function joinRoom() {
+      const username = usernameInput.value.trim();
+      const roomCode = roomCodeInput.value.trim().toUpperCase();
+      if (!username || !roomCode) {
+        alert("Enter both username and room code!");
+        return;
+      }
+
+      const roomRef = ref(db, "rooms/" + roomCode);
+      const snapshot = await get(roomRef);
+      if (!snapshot.exists()) {
+        alert("Room not found!");
+        return;
+      }
+
+      const updates = {};
+      updates["rooms/" + roomCode + "/players/" + username] = { role: "player" };
+      await update(ref(db), updates);
+
+      statusDiv.textContent = `Joined room: ${roomCode}`;
+      console.log("✅ Joined room:", roomCode);
+    }
+
+    // Show connection confirmation
+    onValue(ref(db, ".info/connected"), (snap) => {
+      if (snap.val() === true) {
+        console.log("✅ Connected to Firebase Realtime Database!");
+        statusDiv.textContent = "Connected to Firebase ✅";
+      } else {
+        statusDiv.textContent = "Disconnected ❌";
+      }
     });
-    if (isHost && list.length >= 2) document.getElementById('startGameBtn').classList.remove('hidden');
-  });
-}
 
-function startGame() {
-  db.ref('rooms/' + roomCode + '/state').set('wordSelect');
-  document.getElementById('lobbyScreen').classList.add('hidden');
-  document.getElementById('wordSelectScreen').classList.remove('hidden');
-}
-
-const phrases = [
-  "Hot potato","Break the ice","Under pressure","Elephant in the room","Juggling flamingos","Lost astronaut",
-  "Surfing grandma","Awkward handshake","Couch potato","Belly flop","The last straw","Cat's out of the bag","Robot yoga",
-  "Singing in the shower","Spaghetti monster","Invisible man","Flying carpet","Jumping jellybean","Fishing for compliments",
-  "Chicken dance","Two peas in a pod","Running late","Moonwalking","Snake in the grass","Pizza delivery","Breaking news",
-  "Sneeze attack","Tooth fairy","Marathon nap","Typing with elbows","Lost in translation","Karaoke night","Time traveler",
-  "Bubble wrap","Yoga with cats","Dog walking a human","Haunted toaster","Birthday surprise","Melting ice cream"
-];
-
-function suggestWord() {
-  document.getElementById('suggestedWord').innerText = phrases[Math.floor(Math.random() * phrases.length)];
-}
-
-function confirmWord() {
-  const word = document.getElementById('customWord').value.trim() || document.getElementById('suggestedWord').innerText;
-  if (!word) return alert("Pick or enter a word first");
-  db.ref('rooms/' + roomCode + '/word').set(word);
-  db.ref('rooms/' + roomCode + '/state').set('drawing');
-  startDrawingPhase();
-}
-
-/* ---------- DRAWING ---------- */
-let drawing = false; 
-let drawHistory = [];
-const canvas = document.getElementById('drawCanvas');
-const ctx = canvas.getContext('2d');
-
-canvas.addEventListener('mousedown', e => {drawing = true; draw(e);});
-canvas.addEventListener('mouseup', () => {drawing = false; ctx.beginPath();});
-canvas.addEventListener('mousemove', draw);
-
-function draw(e) {
-  if (!drawing) return;
-  const rect = canvas.getBoundingClientRect();
-  ctx.lineWidth = penSize; ctx.lineCap = "round"; ctx.strokeStyle = "black";
-  ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-  ctx.stroke(); ctx.beginPath();
-  ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-  drawHistory.push({x: e.clientX - rect.left, y: e.clientY - rect.top, s: penSize});
-}
-
-function setPenSize(s) { penSize = s; }
-function undo() { drawHistory.pop(); redraw(); }
-
-function redraw() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  drawHistory.forEach(p=>{
-    ctx.lineWidth=p.s;ctx.lineCap="round";ctx.strokeStyle="black";
-    ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y);
-  });
-}
-
-function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); drawHistory=[]; }
-
-function submitDrawing() {
-  const dataURL = canvas.toDataURL();
-  db.ref('rooms/' + roomCode + '/drawing').set(dataURL);
-  db.ref('rooms/' + roomCode + '/state').set('guessing');
-  alert("Drawing submitted!");
-}
-
-function startDrawingPhase() {
-  document.getElementById('wordSelectScreen').classList.add('hidden');
-  document.getElementById('drawingScreen').classList.remove('hidden');
-  document.getElementById('drawPrompt').innerText = "Draw your word!";
-}
-</script>
+    createRoomBtn.addEventListener("click", createRoom);
+    joinRoomBtn.addEventListener("click", joinRoom);
+  </script>
 </body>
 </html>
