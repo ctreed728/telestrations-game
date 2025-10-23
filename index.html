@@ -16,16 +16,20 @@
   ul { list-style: none; padding: 0; }
   .muted { color:#517089; font-size:14px; }
 
+  /* Room code banner visible on all screens once room is known */
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
-  #turnOrderBox {
-    display:none; max-width:600px; margin:15px auto 0 auto;
-    background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px;
-  }
-  #turnOrderBox h4 { margin:0 0 6px; color:#0b66b2; }
-  #turnOrderList { padding:0; margin:0; }
-  #turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
-  #turnOrderList li.current::before { content:"→ "; color:#0b66b2; font-weight:700; }
 
+  /* Turn order box under main content, compact and centered */
+  .turnOrderBox {
+    display:none; max-width:600px; margin:15px auto 0 auto;
+    background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left;
+  }
+  .turnOrderBox h4 { margin:0 0 6px; color:#0b66b2; }
+  .turnOrderList { padding:0; margin:0; }
+  .turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
+  .turnOrderList li.current::before { content:"→ "; color:#0b66b2; font-weight:700; }
+
+  /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
 </style>
 </head>
@@ -47,6 +51,9 @@
     <ul id="playerList"></ul>
     <p class="muted" id="lobbyMsg"></p>
     <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
+
+    <!-- Turn order box (appears only after game starts) -->
+    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
   <!-- WORD PICK -->
@@ -56,6 +63,8 @@
     <button onclick="suggestWord()">Suggest Word</button>
     <p id="suggestedWord" style="font-weight:700;color:#0b66b2"></p>
     <button onclick="confirmWord()">Confirm & Start Round</button>
+
+    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
   <!-- DRAWING -->
@@ -73,7 +82,8 @@
       <span class="timer" id="drawTimer">60s</span>
       <button onclick="submitDrawing()">Submit Drawing</button>
     </div>
-    <div id="turnOrderBox"><h4>Turn Order</h4><ul id="turnOrderList"></ul></div>
+
+    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
   <!-- GUESSING -->
@@ -87,13 +97,14 @@
       <span class="timer" id="guessTimer">30s</span>
       <button onclick="submitGuess()">Submit Guess</button>
     </div>
-    <div id="turnOrderBox"><h4>Turn Order</h4><ul id="turnOrderList"></ul></div>
+
+    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
   <!-- WAIT -->
   <div class="container hidden" id="waitScreen">
     <p id="waitMsg">Waiting…</p>
-    <div id="turnOrderBox"><h4>Turn Order</h4><ul id="turnOrderList"></ul></div>
+    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
   <!-- RESULTS -->
@@ -101,14 +112,15 @@
     <h2>Results Summary</h2>
     <div style="font-weight:700;color:#0b66b2">Original: <span id="finalWord"></span></div>
     <div id="resultsList" style="text-align:left;margin-top:12px;"></div>
-    <div id="turnOrderBox"><h4>Turn Order</h4><ul id="turnOrderList"></ul></div>
+    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- Firebase -->
+  <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
+  /* ---------- FIREBASE ---------- */
   const firebaseConfig = {
     apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
     authDomain: "telestrations-game-aa386.firebaseapp.com",
@@ -121,139 +133,340 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
+  /* ---------- STATE ---------- */
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null;
-  const phrases=["Awkward handshake","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves","Robot yoga","Time capsule","Elephant on a skateboard","Synchronized napping","Haunted smartphone","Window-shopping dinosaur","Broken umbrella parade","Flying carpet commute","Secret admirer note"];
 
-  const byId=id=>document.getElementById(id);
-  function showOnly(id){["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"].forEach(e=>byId(e).classList.add("hidden"));byId(id).classList.remove("hidden");}
-  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-  function setBanner(code){byId('bannerCode').textContent=code;byId('roomBanner').style.display='block';}
+  /* ---------- WORD LIST ---------- */
+  const phrases = [
+    "Awkward handshake","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
+    "Robot yoga","Time capsule","Elephant on a skateboard","Synchronized napping","Haunted smartphone",
+    "Window-shopping dinosaur","Broken umbrella parade","Flying carpet commute","Secret admirer note",
+    "Lost astronaut","Backwards clock","Talking mailbox","Walking on eggshells","Tickled pink",
+    "Rocket-powered shoes","Barking up the wrong tree","Two peas in a pod","Fish out of water"
+  ];
 
+  /* ---------- UI HELPERS ---------- */
+  const byId = id => document.getElementById(id);
+  function showOnly(id){
+    ["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"].forEach(el=>byId(el).classList.add("hidden"));
+    byId(id).classList.remove("hidden");
+  }
+  function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+  function setBanner(code){ byId('bannerCode').textContent = code; byId('roomBanner').style.display='block'; }
+
+  /* ---------- CREATE / JOIN ---------- */
   function createRoom(){
-    username=byId('usernameInput').value.trim();if(!username)return alert("Enter your name");
-    isHost=true;roomCode=Math.random().toString(36).substring(2,6).toUpperCase();setBanner(roomCode);
-    db.ref('rooms/'+roomCode).set({host:username,players:[username],state:'lobby',order:null,currentIndex:0,gameData:{},word:null});
-    subscribeRoom();showLobby();
+    username = byId('usernameInput').value.trim();
+    if(!username) return alert("Enter your name");
+    isHost = true;
+    roomCode = Math.random().toString(36).substring(2,6).toUpperCase();
+    setBanner(roomCode);
+    db.ref('rooms/'+roomCode).set({
+      host: username,
+      players: [username],
+      state: 'lobby',
+      order: null,
+      currentIndex: 0,
+      gameData: {},
+      word: null
+    });
+    subscribeRoom();
+    showLobby();
   }
 
   function joinRoomPrompt(){
-    username=byId('usernameInput').value.trim();if(!username)return alert("Enter your name first");
-    const code=prompt("Enter Room Code:");if(!code)return;
-    roomCode=code.toUpperCase();setBanner(roomCode);
-    const roomRef=db.ref('rooms/'+roomCode);
-    roomRef.once('value').then(s=>{
-      if(!s.exists()){alert("Room not found");return;}
-      const r=s.val();const p=r.players||[];if(!p.includes(username))p.push(username);
-      roomRef.child('players').set(p);
-    }).then(()=>{isHost=false;subscribeRoom();showLobby();});
+    username = byId('usernameInput').value.trim();
+    if(!username) return alert("Enter your name first");
+    const code = prompt("Enter Room Code:");
+    if(!code) return;
+    roomCode = code.toUpperCase();
+    setBanner(roomCode);
+
+    const roomRef = db.ref('rooms/'+roomCode);
+    roomRef.once('value').then(snap=>{
+      if(!snap.exists()){ alert("Room not found"); return; }
+      const room = snap.val();
+      const players = room.players || [];
+      if(!players.includes(username)) roomRef.child('players').set([...players, username]);
+    }).then(()=>{
+      isHost = false;
+      subscribeRoom();
+      showLobby();
+    }).catch(err=>{
+      console.error("Join Room Error:", err);
+      alert("There was an error joining. Check console for details.");
+    });
   }
 
+  /* ---------- LOBBY ---------- */
   function showLobby(){
-    showOnly('lobbyScreen');byId('roomCodeDisplay').innerText=roomCode;
-    const listEl=byId('playerList');
-    db.ref('rooms/'+roomCode+'/players').on('value',snap=>{
-      const list=snap.val()||[];
-      listEl.innerHTML=list.map(p=>`<li>${p}</li>`).join("");
-      const canStart=isHost&&list.length>=2&&list.length<=12;
-      byId('startGameBtn').classList.toggle('hidden',!canStart);
-      byId('lobbyMsg').innerText=isHost?"Click Start Game once all players have joined.":"Waiting for the host to start the game once everyone has joined and is ready.";
+    showOnly('lobbyScreen');
+    byId('roomCodeDisplay').innerText = roomCode;
+    const listEl = byId('playerList');
+    db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
+      const list = snap.val() || [];
+      listEl.innerHTML = list.map(p=>`<li>${p}</li>`).join("");
+      const canStart = isHost && list.length >= 2 && list.length <= 12;
+      byId('startGameBtn').classList.toggle('hidden', !canStart);
+      byId('lobbyMsg').innerText = isHost
+        ? "Click Start Game once all players have joined."
+        : "Waiting for the host to start the game once everyone has joined and is ready.";
     });
   }
 
   function startGame(){
     db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const room=s.val();const players=room.players||[];
-      const host=players[0];const others=shuffle(players.slice(1));
-      const order=[host,...others];
-      db.ref('rooms/'+roomCode).update({order,currentIndex:0,state:'wordSelect'});
+      const room = s.val();
+      const players = room.players || [];
+      const host = players[0];
+      const others = shuffle(players.slice(1)); // randomize everyone except host
+      const order = [host, ...others];
+      db.ref('rooms/'+roomCode).update({ order, currentIndex: 0, state: 'wordSelect' });
     });
   }
 
-  function suggestWord(){byId('suggestedWord').innerText=phrases[Math.floor(Math.random()*phrases.length)];}
+  /* ---------- WORD PICK ---------- */
+  function suggestWord(){ byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)]; }
   function confirmWord(){
-    const c=byId('customWord').value.trim();const w=c||byId('suggestedWord').innerText;
-    if(!w)return alert("Pick or enter a word first");
-    db.ref('rooms/'+roomCode).update({word:w,state:'drawing',currentIndex:0});
+    const c = byId('customWord').value.trim();
+    const w = c || byId('suggestedWord').innerText;
+    if(!w) return alert("Pick or enter a word/phrase first");
+    db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0 });
   }
 
-  let roomListener=false;
+  /* ---------- SUBSCRIBE TO ROOM ---------- */
+  let roomListenerAttached = false;
   function subscribeRoom(){
-    if(roomListener)return;roomListener=true;
-    db.ref('rooms/'+roomCode).on('value',snap=>{
-      const room=snap.val();if(!room){alert("Room closed");location.reload();return;}
-      updateTurnOrder(room);
-      if(room.state==='lobby')return showLobby();
-      if(room.state==='wordSelect'){if(isHost)showOnly('wordSelectScreen');else{byId('waitMsg').innerText="Host is choosing a word…";showOnly('waitScreen');}return;}
-      const order=room.order||[],idx=room.currentIndex||0,current=order[idx],mine=(current===username);
-      if(room.state==='drawing'){if(mine)startDrawingPhase(room,idx);else{byId('waitMsg').innerText=`${current} is drawing…`;showOnly('waitScreen');}}
-      else if(room.state==='guessing'){if(mine)startGuessingPhase(room,idx);else{byId('waitMsg').innerText=`${current} is guessing…`;showOnly('waitScreen');}}
-      else if(room.state==='results')showResults(room);
+    if(roomListenerAttached) return;
+    roomListenerAttached = true;
+
+    db.ref('rooms/'+roomCode).on('value', snapshot=>{
+      const room = snapshot.val();
+      if(!room){ alert("Room closed"); location.reload(); return; }
+
+      renderTurnOrder(room);
+
+      if(room.state === 'lobby') { showLobby(); return; }
+
+      if(room.state === 'wordSelect'){
+        if(isHost) showOnly('wordSelectScreen');
+        else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
+        return;
+      }
+
+      const order = room.order || [];
+      const idx = room.currentIndex || 0;
+      const currentPlayer = order[idx] || "";
+      const isMyTurn = (currentPlayer === username);
+
+      if(room.state === 'drawing'){
+        if(isMyTurn) startDrawingPhase(room, idx);
+        else { byId('waitMsg').innerText = `${currentPlayer} is drawing…`; showOnly('waitScreen'); }
+        return;
+      }
+
+      if(room.state === 'guessing'){
+        if(isMyTurn) startGuessingPhase(room, idx);
+        else { byId('waitMsg').innerText = `${currentPlayer} is guessing…`; showOnly('waitScreen'); }
+        return;
+      }
+
+      if(room.state === 'results'){
+        showResults(room);
+        return;
+      }
     });
   }
 
-  function updateTurnOrder(room){
-    const listEls=document.querySelectorAll('#turnOrderList');
-    const order=room.order||[],idx=room.currentIndex||0;
-    listEls.forEach(list=>{
-      list.innerHTML='';
-      order.forEach((p,i)=>{
-        const li=document.createElement('li');
-        li.textContent=p;if(i===idx)li.classList.add('current');
+  /* ---------- TURN ORDER RENDER ---------- */
+  function renderTurnOrder(room){
+    const lists = document.querySelectorAll('.turnOrderList');
+    const wrappers = document.querySelectorAll('.turnOrderBox');
+    const order = room.order || [];
+    const idx = room.currentIndex || 0;
+
+    // Show box only after game starts (order exists) and not in lobby
+    const show = order.length > 0 && room.state !== 'lobby';
+    wrappers.forEach(w => w.style.display = show ? 'block' : 'none');
+
+    if(!show) return;
+
+    lists.forEach(list => {
+      list.innerHTML = '';
+      order.forEach((name, i) => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        if(i === idx) li.classList.add('current');
         list.appendChild(li);
       });
-      list.parentElement.style.display=(order.length>0&&room.state!=='lobby')?'block':'none';
     });
   }
 
-  /* Drawing */
-  const canvas=byId('drawCanvas'),ctx=canvas.getContext('2d');
-  function resetCanvasBackground(){ctx.fillStyle="white";ctx.fillRect(0,0,canvas.width,canvas.height);}
+  /* ---------- CANVAS DRAWING ---------- */
+  const canvas = byId('drawCanvas');
+  const ctx = canvas.getContext('2d');
+
+  function resetCanvasBackground(){
+    ctx.fillStyle = "white";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
   resetCanvasBackground();
-  let drawing=false,strokes=[],currentStroke=[];
-  function highlightPen(id){['smallPen','mediumPen','largePen'].forEach(b=>byId(b).classList.remove('activePen'));byId(id).classList.add('activePen');}
-  function setPenSize(size){penSize=size;highlightPen(size===2?'smallPen':size===6?'mediumPen':'largePen');}
-  setPenSize(6);
 
-  function getPos(e){const r=canvas.getBoundingClientRect();const x=(e.touches?e.touches[0].clientX-r.left:e.offsetX);const y=(e.touches?e.touches[0].clientY-r.top:e.offsetY);return{x,y};}
-  function beginStroke(e){drawing=true;currentStroke=[];addPoint(e);}
-  function moveStroke(e){if(!drawing)return;addPoint(e);}
-  function endStroke(){if(!drawing)return;drawing=false;if(currentStroke.length)strokes.push(currentStroke);ctx.beginPath();}
-  function addPoint(e){const p=getPos(e);currentStroke.push(p);ctx.lineWidth=penSize;ctx.lineCap="round";ctx.strokeStyle="black";if(currentStroke.length===1){ctx.beginPath();ctx.moveTo(p.x,p.y);}else{ctx.lineTo(p.x,p.y);ctx.stroke();}}
-  ["mousedown","mousemove","mouseup","mouseleave"].forEach(ev=>canvas.addEventListener(ev,e=>{if(ev==='mousedown')beginStroke(e);else if(ev==='mousemove')moveStroke(e);else endStroke();}));
-  ["touchstart","touchmove","touchend"].forEach(ev=>canvas.addEventListener(ev,e=>{e.preventDefault();if(ev==='touchstart')beginStroke(e);else if(ev==='touchmove')moveStroke(e);else endStroke();},{passive:false}));
-  function undo(){strokes.pop();redrawAll();}
-  function clearCanvas(){strokes=[];ctx.clearRect(0,0,canvas.width,canvas.height);resetCanvasBackground();}
-  function redrawAll(){ctx.clearRect(0,0,canvas.width,canvas.height);resetCanvasBackground();for(const s of strokes){ctx.beginPath();s.forEach((p,i)=>{if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});ctx.lineWidth=penSize;ctx.strokeStyle="black";ctx.stroke();}}
+  let drawing = false;
+  let strokes = [];
+  let currentStroke = [];
 
-  function startDrawingPhase(room,idx){showOnly('drawingScreen');clearCanvas();setPenSize(6);byId('drawPrompt').innerText=(idx===0)?`Draw the word/phrase: "${room.word}"`:`Draw this phrase: "${room.gameData[idx-1].data}"`;startDrawTimer();}
-  function submitDrawing(){stopDrawTimer();const dataURL=canvas.toDataURL('image/png');db.ref('rooms/'+roomCode).once('value').then(s=>{const r=s.val();const i=r.currentIndex||0;const u={};u['rooms/'+roomCode+'/gameData/'+i]={type:'draw',data:dataURL,player:username};const n=i+1;if(n>=(r.order||[]).length)u['rooms/'+roomCode+'/state']='results';else{u['rooms/'+roomCode+'/currentIndex']=n;u['rooms/'+roomCode+'/state']='guessing';}db.ref().update(u);});}
-  function startDrawTimer(){let t=60;byId('drawTimer').innerText=t+'s';drawInterval=setInterval(()=>{t--;byId('drawTimer').innerText=t+'s';if(t<=0)submitDrawing();},1000);}
-  function stopDrawTimer(){if(drawInterval){clearInterval(drawInterval);drawInterval=null;byId('drawTimer').innerText='60s';}}
+  function highlightPen(btnId){
+    ['smallPen','mediumPen','largePen'].forEach(id=>byId(id).classList.remove('activePen'));
+    byId(btnId).classList.add('activePen');
+  }
+  function setPenSize(size){
+    penSize = size;
+    highlightPen(size===2 ? 'smallPen' : size===6 ? 'mediumPen' : 'largePen');
+  }
+  setPenSize(6); // default
 
-  /* Guessing */
-  function startGuessingPhase(room,idx){showOnly('guessScreen');const prev=room.gameData[idx-1];byId('guessImage').src=prev?.data||'';byId('guessInput').value='';startGuessTimer();}
-  function submitGuess(){stopGuessTimer();const g=(byId('guessInput').value||'').trim()||'No guess';db.ref('rooms/'+roomCode).once('value').then(s=>{const r=s.val();const i=r.currentIndex||0;const u={};u['rooms/'+roomCode+'/gameData/'+i]={type:'guess',data:g,player:username};const n=i+1;if(n>=(r.order||[]).length)u['rooms/'+roomCode+'/state']='results';else{u['rooms/'+roomCode+'/currentIndex']=n;u['rooms/'+roomCode+'/state']='drawing';}db.ref().update(u);});}
+  // Robust touch/mouse coordinate mapping (Firefox & mobile friendly)
+  function getPos(e){
+    const r = canvas.getBoundingClientRect();
+    if (e.touches && e.touches.length){
+      return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top };
+    }
+    // For some browsers, offsetX/Y can be undefined on certain events; fallback to client coords
+    const x = (e.offsetX !== undefined) ? e.offsetX : (e.clientX - r.left);
+    const y = (e.offsetY !== undefined) ? e.offsetY : (e.clientY - r.top);
+    return { x, y };
+  }
 
-  function startGuessTimer(){let t=30;byId('guessTimer').innerText=t+'s';guessInterval=setInterval(()=>{t--;byId('guessTimer').innerText=t+'s';...if(t<=0)submitGuess();},1000);}
-  function stopGuessTimer(){if(guessInterval){clearInterval(guessInterval);guessInterval=null;byId('guessTimer').innerText='30s';}}
+  function beginStroke(e){ drawing = true; currentStroke = []; addPoint(e); }
+  function moveStroke(e){ if(!drawing) return; addPoint(e); }
+  function endStroke(){ if(!drawing) return; drawing = false; if(currentStroke.length) strokes.push(currentStroke); ctx.beginPath(); }
 
-  /* Results */
+  function addPoint(e){
+    const p = getPos(e);
+    currentStroke.push(p);
+    ctx.lineWidth = penSize;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "black";
+    if(currentStroke.length === 1){ ctx.beginPath(); ctx.moveTo(p.x, p.y); }
+    else { ctx.lineTo(p.x, p.y); ctx.stroke(); }
+  }
+
+  // Mouse events
+  canvas.addEventListener('mousedown', beginStroke);
+  canvas.addEventListener('mousemove', moveStroke);
+  canvas.addEventListener('mouseup', endStroke);
+  canvas.addEventListener('mouseleave', endStroke);
+
+  // Touch events
+  canvas.addEventListener('touchstart', e=>{ e.preventDefault(); beginStroke(e); }, {passive:false});
+  canvas.addEventListener('touchmove',  e=>{ e.preventDefault(); moveStroke(e);  }, {passive:false});
+  canvas.addEventListener('touchend',   e=>{ e.preventDefault(); endStroke();     }, {passive:false});
+
+  function undo(){ strokes.pop(); redrawAll(); }
+  function clearCanvas(){ strokes = []; ctx.clearRect(0,0,canvas.width,canvas.height); resetCanvasBackground(); }
+  function redrawAll(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    resetCanvasBackground();
+    for(const s of strokes){
+      ctx.beginPath();
+      s.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+      ctx.lineWidth = penSize;
+      ctx.strokeStyle = "black";
+      ctx.stroke();
+    }
+  }
+
+  function startDrawingPhase(room, idx){
+    showOnly('drawingScreen');
+    clearCanvas();
+    setPenSize(6);
+    byId('drawPrompt').innerText = (idx===0)
+      ? `Draw the word/phrase: "${room.word}"`
+      : `Draw this phrase: "${room.gameData[idx-1].data}"`;
+    startDrawTimer();
+  }
+
+  function submitDrawing(){
+    stopDrawTimer();
+    const dataURL = canvas.toDataURL('image/png');
+    db.ref('rooms/'+roomCode).once('value').then(s=>{
+      const room = s.val();
+      const idx = room.currentIndex || 0;
+      const u = {};
+      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'draw', data:dataURL, player:username };
+      const next = idx + 1;
+      if(next >= (room.order||[]).length) u['rooms/'+roomCode+'/state'] = 'results';
+      else { u['rooms/'+roomCode+'/currentIndex'] = next; u['rooms/'+roomCode+'/state'] = 'guessing'; }
+      db.ref().update(u);
+    });
+  }
+
+  function startDrawTimer(){
+    let t = 60;
+    byId('drawTimer').innerText = t + 's';
+    drawInterval = setInterval(()=>{
+      t--; byId('drawTimer').innerText = t + 's';
+      if(t<=0) submitDrawing();
+    },1000);
+  }
+  function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
+
+  /* ---------- GUESSING ---------- */
+  function startGuessingPhase(room, idx){
+    showOnly('guessScreen');
+    const prev = room.gameData[idx-1];
+    byId('guessImage').src = prev?.data || '';
+    byId('guessInput').value = '';
+    startGuessTimer();
+  }
+
+  function submitGuess(){
+    stopGuessTimer();
+    const g = (byId('guessInput').value || '').trim() || 'No guess';
+    db.ref('rooms/'+roomCode).once('value').then(s=>{
+      const room = s.val();
+      const idx = room.currentIndex || 0;
+      const u = {};
+      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:g, player:username };
+      const next = idx + 1;
+      if(next >= (room.order||[]).length) u['rooms/'+roomCode+'/state'] = 'results';
+      else { u['rooms/'+roomCode+'/currentIndex'] = next; u['rooms/'+roomCode+'/state'] = 'drawing'; }
+      db.ref().update(u);
+    });
+  }
+
+  function startGuessTimer(){
+    let t = 30;
+    byId('guessTimer').innerText = t + 's';
+    guessInterval = setInterval(()=>{
+      t--; byId('guessTimer').innerText = t + 's';
+      if(t<=0) submitGuess();
+    },1000);
+  }
+  function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
+
+  /* ---------- RESULTS ---------- */
   function showResults(room){
     showOnly('resultsScreen');
-    byId('finalWord').innerText=room.word||'';
-    const list=byId('resultsList');list.innerHTML='';
-    const steps=Object.keys(room.gameData||{}).map(n=>parseInt(n,10)).sort((a,b)=>a-b);
+    byId('finalWord').innerText = room.word || '';
+    const list = byId('resultsList');
+    list.innerHTML = '';
+    const steps = Object.keys(room.gameData||{}).map(n=>parseInt(n,10)).sort((a,b)=>a-b);
     steps.forEach(step=>{
-      const e=room.gameData[step];
-      const div=document.createElement('div');div.style.marginBottom='14px';
-      div.innerHTML=`<b>Step ${step+1} — ${e.player} (${e.type})</b><br>`;
-      if(e.type==='draw'){
-        const img=document.createElement('img');
-        img.src=e.data;img.style.maxWidth='100%';img.style.border='1px solid #ddd';img.style.borderRadius='8px';
+      const e = room.gameData[step];
+      const div = document.createElement('div');
+      div.style.marginBottom = '14px';
+      div.innerHTML = `<b>Step ${step+1} — ${e.player} (${e.type})</b><br>`;
+      if(e.type === 'draw'){
+        const img = document.createElement('img');
+        img.src = e.data; img.style.maxWidth='100%'; img.style.border='1px solid #ddd'; img.style.borderRadius='8px';
         div.appendChild(img);
       } else {
-        const p=document.createElement('div');p.textContent=e.data;p.style.marginTop='6px';div.appendChild(p);
+        const p = document.createElement('div');
+        p.textContent = e.data; p.style.marginTop='6px';
+        div.appendChild(p);
       }
       list.appendChild(div);
     });
