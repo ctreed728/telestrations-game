@@ -215,6 +215,15 @@
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
 
+  // NEW: Track current turn key to decide when to reset vs. preserve on reconnect
+  let lastTurnKey = null;
+  function makeTurnKey(room){
+    const idx = room?.currentIndex ?? 0;
+    const phase = room?.state ?? '';
+    const ts = room?.turnStart ?? 0;
+    return `${phase}#${idx}#${ts}`;
+  }
+
   const phrases = [
     "Penguin on vacation","Cactus karaoke","Wi-Fi ghost","Banana in a tuxedo","Invisible umbrella",
     "Robot doing yoga","Haunted toaster","Moonwalking giraffe","Submarine in the desert","Laptop campfire",
@@ -328,7 +337,7 @@
 
     db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
       const list = snap.val() || [];
-      db.ref('rooms/'+roomCode+'/connections').once('value').then(csnap=>{
+      db.ref('rooms/'+roomCode}/connections`).once('value').then(csnap=>{
         const connMap = csnap.val()||{};
         const connected = Object.keys(connMap);
         listEl.innerHTML = list.map(p=>{
@@ -381,6 +390,11 @@
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
+        // New round setup: clear local buffers so nothing carries over
+        strokes = [];
+        if (typeof clearCanvas === 'function') clearCanvas();
+        lastTurnKey = null;
+
         const firstPlayer = room.order && room.order.length ? room.order[0] : room.host;
         if(username === firstPlayer){
           showOnly('wordSelectScreen');
@@ -574,125 +588,105 @@
     }
   }
 
+  /* -------- TURN-KEYD PHASE START (reset only on new turn) -------- */
   function startDrawingPhase(room, idx){
-    // Preserve existing strokes on reconnect; only clear if starting fresh
-    if (strokes.length === 0) {
+    const turnKey = makeTurnKey(room);
+    const isNewTurn = (turnKey !== lastTurnKey);
+
+    if (isNewTurn) {
+      strokes = [];
       clearCanvas();
       setPenSize(6);
+      lastTurnKey = turnKey;
     }
     byId('drawPrompt').innerText = (idx===0)
       ? `Draw the word/phrase: "${room.word}"`
       : `Draw this phrase: "${room.gameData[idx-1].data}"`;
+
     startDrawTimer(room);
   }
 
-  function submitDrawing(forced){
-    if(!forced && strokes.length===0){
-      alert("Please add at least one stroke before submitting.");
-      return;
-    }
-    stopDrawTimer();
-    const dataURL = canvas.toDataURL('image/png');
-    db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const room = s.val();
-      const idx = room.currentIndex || 0;
-      const u = {};
-      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'draw', data:dataURL, player:username };
-      const next = idx + 1;
-      if(next >= (room.order||[]).length){
-        u['rooms/'+roomCode+'/state'] = 'results';
-      } else {
-        u['rooms/'+roomCode+'/currentIndex'] = next;
-        u['rooms/'+roomCode+'/state'] = 'guessing';
-        u['rooms/'+roomCode+'/turnStart'] = Date.now();
-      }
-      db.ref().update(u);
-    });
-  }
+  function startGuessingPhase(room, idx){
+    const turnKey = makeTurnKey(room);
+    const isNewTurn = (turnKey !== lastTurnKey);
 
+    const prev = room.gameData[idx-1];
+    byId('guessImage').src = prev?.data || '';
+
+    if (isNewTurn) {
+      byId('guessInput').value = '';
+      lastTurnKey = turnKey;
+    }
+
+    startGuessTimer(room);
+  }
+  /* --------------------------------------------------------------- */
+
+  /* ---------------- STRICT SHARED TIMERS (wait for turnStart) --------------- */
   function startDrawTimer(room){
     stopDrawTimer();
-    const start = room.turnStart || Date.now();
-    const duration = 60;
-    function tick(){
-      const elapsed = Math.floor((Date.now() - start)/1000);
-      const remaining = Math.min(duration, Math.max(0, duration - elapsed));
-      byId('drawTimer').innerText = remaining + 's';
-      if(remaining <= 0){ submitDrawing(true); }
+
+    function startWhenReady(){
+      const ts = room.turnStart;
+      if (!ts) { setTimeout(startWhenReady, 50); return; }
+      const duration = 60;
+
+      const tick = () => {
+        const elapsed = Math.floor((Date.now() - ts)/1000);
+        const remaining = Math.max(0, duration - elapsed);
+        byId('drawTimer').innerText = remaining + 's';
+        if (remaining <= 0) { submitDrawing(true); }
+      };
+
+      tick();
+      drawInterval = setInterval(tick, 1000);
     }
-    tick();
-    drawInterval = setInterval(tick, 1000);
+
+    startWhenReady();
   }
   function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
 
-  function startGuessingPhase(room, idx){
-    // Always make sure the image is present
-    const prev = room.gameData[idx-1];
-    byId('guessImage').src = prev?.data || '';
-    // Preserve typed guess on reconnect; only reset if empty
-    if (byId('guessInput').value.trim() === '') {
-      byId('guessInput').value = '';
-    }
-    startGuessTimer(room);
-  }
-
-  function submitGuess(){
-    const val = (byId('guessInput').value || '').trim();
-    if(!val){
-      alert("Please type a guess (or wait for the timer to auto-submit).");
-      return;
-    }
-    stopGuessTimer();
-    const g = val;
-    db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const room = s.val();
-      const idx = room.currentIndex || 0;
-      const u = {};
-      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:g, player:username };
-      const next = idx + 1;
-      if(next >= (room.order||[]).length){
-        u['rooms/'+roomCode+'/state'] = 'results';
-      } else {
-        u['rooms/'+roomCode+'/currentIndex'] = next;
-        u['rooms/'+roomCode+'/state'] = 'drawing';
-        u['rooms/'+roomCode+'/turnStart'] = Date.now();
-      }
-      db.ref().update(u);
-    });
-  }
-
   function startGuessTimer(room){
     stopGuessTimer();
-    const start = room.turnStart || Date.now();
-    const duration = 30;
-    function tick(){
-      const elapsed = Math.floor((Date.now() - start)/1000);
-      const remaining = Math.min(duration, Math.max(0, duration - elapsed));
-      byId('guessTimer').innerText = remaining + 's';
-      if(remaining <= 0){
-        byId('guessInput').value = '';
-        stopGuessTimer();
-        db.ref('rooms/'+roomCode).once('value').then(s=>{
-          const room = s.val();
-          const idx = room.currentIndex || 0;
-          const u = {};
-          u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
-          const next = idx + 1;
-          if(next >= (room.order||[]).length){
-            u['rooms/'+roomCode+'/state'] = 'results';
-          } else {
-            u['rooms/'+roomCode+'/currentIndex'] = next;
-            u['rooms/'+roomCode+'/state'] = 'drawing';
-            u['rooms/'+roomCode+'/turnStart'] = Date.now();
-          }
-          db.ref().update(u);
-        });
-      }
+
+    function startWhenReady(){
+      const ts = room.turnStart;
+      if (!ts) { setTimeout(startWhenReady, 50); return; }
+      const duration = 30;
+
+      const tick = () => {
+        const elapsed = Math.floor((Date.now() - ts)/1000);
+        const remaining = Math.max(0, duration - elapsed);
+        byId('guessTimer').innerText = remaining + 's';
+        if(remaining <= 0){
+          byId('guessInput').value = '';
+          stopGuessTimer();
+          db.ref('rooms/'+roomCode).once('value').then(s=>{
+            const room = s.val();
+            const idx = room.currentIndex || 0;
+            const u = {};
+            u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
+            const next = idx + 1;
+            if(next >= (room.order||[]).length){
+              u['rooms/'+roomCode+'/state'] = 'results';
+            } else {
+              u['rooms/'+roomCode+'/currentIndex'] = next;
+              u['rooms/'+roomCode+'/state'] = 'drawing';
+              u['rooms/'+roomCode+'/turnStart'] = Date.now();
+            }
+            db.ref().update(u);
+          });
+        }
+      };
+
+      tick();
+      guessInterval = setInterval(tick, 1000);
     }
-    tick();
-    guessInterval = setInterval(tick, 1000);
+
+    startWhenReady();
   }
   function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
+  /* ------------------------------------------------------------------------- */
 
   function showResults(room){
     showOnly('resultsScreen');
@@ -767,22 +761,22 @@
 
     const colors = ["#ff595e","#ffca3a","#8ac926","#1982c4","#6a4c93","#ff9f1c","#2ec4b6"];
     const particles = [];
-    const count = 200; // nice dense pop
+    const count = 200;
     const centerX = c.width / 2;
     const centerY = c.height / 2;
 
     for(let i=0;i<count;i++){
       const angle = Math.random() * Math.PI * 2;
-      const speed = 4 + Math.random() * 6; // outward speed
+      const speed = 4 + Math.random() * 6;
       particles.push({
         x: centerX,
         y: centerY,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 2, // slight upward bias
+        vy: Math.sin(angle) * speed - 2,
         size: 2 + Math.random() * 4,
         color: colors[Math.floor(Math.random()*colors.length)],
         life: 0,
-        maxLife: 60 + Math.random()*40, // frames
+        maxLife: 60 + Math.random()*40,
         rotation: Math.random() * 360,
         vr: (Math.random() - 0.5) * 10
       });
@@ -814,7 +808,6 @@
         ctx.restore();
       });
 
-      // Remove old particles
       for (let i = particles.length - 1; i >= 0; i--) {
         if (particles[i].life > particles[i].maxLife) particles.splice(i,1);
       }
