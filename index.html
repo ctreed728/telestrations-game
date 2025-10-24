@@ -144,7 +144,6 @@
 <h3>Pick a Word or Phrase</h3>
 <input id="customWord" placeholder="Enter custom word/phrase" type="text"/><br/><br/>
 <button onclick="suggestWord()">Suggest Word/Phrase</button>
-
 <button onclick="confirmWord()">Confirm &amp; Start Round</button>
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
 </div>
@@ -166,14 +165,14 @@
 </div>
 <div class="container hidden" id="guessScreen">
 <h3>Guess the drawing!</h3>
-<input id="guessInput" placeholder="Type your guess here" type="text">
+<input id="guessInput" placeholder="Type your guess here" type="text"/>
 <div style="margin-top:8px;">
 <span class="timer" id="guessTimer">30s</span>
 <button onclick="submitGuess()">Submit Guess</button>
 </div>
 <img id="guessImage"/>
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
-</input></div>
+</div>
 <div class="container hidden" id="waitScreen">
 <div id="turnBanner"></div>
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
@@ -365,7 +364,7 @@
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
     if(!w) return alert("Pick or enter a word/phrase first");
-    db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: firebase.database.ServerValue.TIMESTAMP });
+    if(!c){alert('Please enter a word or phrase first.');return;}db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: firebase.database.ServerValue.TIMESTAMP });
   }
 
   let roomListenerAttached = false;
@@ -447,7 +446,7 @@
     const ts = room.turnStart || 0;
     const dur = getPhaseDuration(room.state);
     if(!ts || !dur) return null;
-    const elapsed = Math.floor((Date.now() - ts)/1000);
+    const elapsed = Math.floor((getServerNow() - ts)/1000);
     return Math.max(0, dur - elapsed);
   }
   function updateTurnTimerLabels(room){
@@ -624,7 +623,7 @@
       const duration = 60;
 
       const tick = () => {
-        const elapsed = Math.floor((Date.now() - ts)/1000);
+        const elapsed = Math.floor((getServerNow() - ts)/1000);
         const remaining = Math.max(0, duration - elapsed);
         byId('drawTimer').innerText = remaining + 's';
         if (remaining <= 0) { submitDrawing(true); }
@@ -647,7 +646,7 @@
       const duration = 30;
 
       const tick = () => {
-        const elapsed = Math.floor((Date.now() - ts)/1000);
+        const elapsed = Math.floor((getServerNow() - ts)/1000);
         const remaining = Math.max(0, duration - elapsed);
         byId('guessTimer').innerText = remaining + 's';
         if(remaining <= 0){
@@ -709,7 +708,7 @@
       alert("Please type a guess (or wait for the timer to auto-submit).");
       return;
     }
-    stopGuessTimer();
+    if(!val){alert('Please enter a guess or wait for the timer to end.');return;}stopGuessTimer();
     const g = val;
     db.ref('rooms/'+roomCode).once('value').then(s=>{
       const room = s.val();
