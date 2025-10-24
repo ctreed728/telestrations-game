@@ -426,7 +426,7 @@
         return;
       }
 
-      if (room.state === 'results' && !hasShownResultsConfetti) { hasShownResultsConfetti = true;
+      if(room.state === 'results'){
         stopSharedTurnTicker();
         setTurnBanner("");
         showResults(room);
@@ -888,145 +888,84 @@ submitGuess = function(){
   originalSubmitGuess();
 };
 </script>
-<!-- BEGIN: Minimal Patch (non-destructive) -->
+
+<!-- BEGIN: Safe Patch - partial guess timeout + confetti guard -->
 <script>
 (function(){
-  // 1) Guard confirmWord: require a non-empty word before starting
-  if (typeof confirmWord === 'function') {
-    const __orig_confirmWord = confirmWord;
-    window.confirmWord = function(){
-      var el = document.getElementById('customWord');
-      var c = el ? (el.value || '').trim() : '';
-      if (!c) { alert('Please enter a word or phrase first.'); return; }
-      return __orig_confirmWord();
-    };
+  // ---- Partial guess timeout (authoritative, non-destructive) ----
+  var __partialGuessTimer = null;
+
+  function guardSubmitAtZero(){
+    try{
+      var inp = document.getElementById('guessInput');
+      var val = inp ? (inp.value || '').trim() : '';
+      var guessData = val ? val : 'No guess';
+      if (!window.firebase || !window.db || !window.roomCode) return;
+
+      // Only submit if still in 'guessing' and not already submitted for this index
+      firebase.database().ref('rooms/'+roomCode).once('value').then(function(s){
+        var room = s.val() || {};
+        if (room.state !== 'guessing') return; // someone already advanced
+        var idx = room.currentIndex || 0;
+        var answerRef = firebase.database().ref('rooms/'+roomCode+'/gameData/'+idx);
+        answerRef.once('value').then(function(g){
+          if (g.exists()) return; // already submitted
+          var u = {};
+          u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data: guessData, player: username };
+          var next = idx + 1;
+          if (next >= ((room.order)||[]).length){
+            u['rooms/'+roomCode+'/state'] = 'results';
+          } else {
+            u['rooms/'+roomCode+'/currentIndex'] = next;
+            u['rooms/'+roomCode+'/state'] = 'drawing';
+            u['rooms/'+roomCode+'/turnStart'] = (window.firebase && firebase.database && firebase.database.ServerValue)
+              ? firebase.database.ServerValue.TIMESTAMP : Date.now();
+          }
+          firebase.database().ref().update(u);
+        });
+      });
+    }catch(e){ /* no-op */ }
   }
 
-  // 2) Guard submitGuess: prevent manual blank submits (timer continues)
-  if (typeof submitGuess === 'function') {
-    const __orig_submitGuess = submitGuess;
-    window.submitGuess = function(){
-      var el = document.getElementById('guessInput');
-      var val = el ? (el.value || '').trim() : '';
-      if (!val) { alert('Please enter a guess or wait for the timer to end.'); return; }
-      return __orig_submitGuess();
-    };
-  }
-
-  // 3) Ensure partial guess is used on timeout
-  //    Hook startGuessTimer to schedule a safety path that reads whatever is typed at expiry.
   if (typeof startGuessTimer === 'function') {
-    const __orig_startGuessTimer = startGuessTimer;
+    var __orig_startGuessTimer = startGuessTimer;
     window.startGuessTimer = function(room){
       __orig_startGuessTimer(room);
       try{
+        if (__partialGuessTimer) { clearTimeout(__partialGuessTimer); __partialGuessTimer = null; }
         var duration = 30;
-        if (room && room.turnStart) {
-          var now = (typeof getServerNow==='function') ? getServerNow() : Date.now();
-          var elapsed = Math.floor((now - room.turnStart)/1000);
-          var remainingMs = Math.max(0, (duration - elapsed) * 1000);
-          // Clear any prior safety timeout to avoid duplicates
-          if (window.__partialGuessTimeout) clearTimeout(window.__partialGuessTimeout);
-          window.__partialGuessTimeout = setTimeout(function(){
-            try{
-              var inp = document.getElementById('guessInput');
-              var val = inp ? (inp.value || '').trim() : '';
-              if (typeof stopGuessTimer === 'function') { try{ stopGuessTimer(); }catch(e){} }
-              if (typeof roomCode !== 'undefined' && typeof db !== 'undefined') {
-                db.ref('rooms/'+roomCode).once('value').then(function(s){
-                  var room = s.val() || {};
-                  var idx = room.currentIndex || 0;
-                  var u = {};
-                  var guessData = val ? val : 'No guess';
-                  u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data: guessData, player: username };
-                  var next = idx + 1;
-                  if (next >= ((room.order)||[]).length) {
-                    u['rooms/'+roomCode+'/state'] = 'results';
-                  } else {
-                    u['rooms/'+roomCode+'/currentIndex'] = next;
-                    u['rooms/'+roomCode+'/state'] = 'drawing';
-                    u['rooms/'+roomCode+'/turnStart'] = (window.firebase && firebase.database && firebase.database.ServerValue)
-                      ? firebase.database.ServerValue.TIMESTAMP : Date.now();
-                  }
-                  db.ref().update(u);
-                });
-              }
-            }catch(e){ /* swallow */ }
-          }, remainingMs + 60); // slight buffer past displayed 0
-        }
-      }catch(e){ /* swallow */ }
+        var ts = room && room.turnStart;
+        if (!ts) return;
+        var now = (typeof getServerNow==='function') ? getServerNow() : Date.now();
+        var elapsed = Math.floor((now - ts)/1000);
+        var remainingMs = Math.max(0, (duration - elapsed) * 1000);
+        __partialGuessTimer = setTimeout(function(){ guardSubmitAtZero(); }, remainingMs + 150);
+      }catch(e){}
     };
   }
 
-  // 4) Show waiting message for non-chooser players during word selection
-  function insertWaitNotice(){
-    var waitScreen = document.getElementById('waitScreen');
-    if (!waitScreen) return;
-    if (!document.getElementById('wordWaitNote')) {
-      var box = document.createElement('div');
-      box.id = 'wordWaitNote';
-      box.style.display = 'none';
-      box.style.margin = '8px auto 6px';
-      box.style.fontWeight = '600';
-      box.style.color = 'var(--accent, #0b66b2)';
-      box.textContent = 'Waiting for the first player to choose a word or phrase...';
-      // Insert above the first .turnOrderBox if present, else at top
-      var toBox = waitScreen.querySelector('.turnOrderBox');
-      if (toBox && toBox.parentNode) {
-        toBox.parentNode.insertBefore(box, toBox);
-      } else {
-        waitScreen.insertBefore(box, waitScreen.firstChild);
-      }
-    }
-  }
-
-  function setupWaitNoticeListener(){
-    if (typeof roomCode === 'undefined' || !roomCode) return;
-    if (!(window.firebase && window.firebase.database)) return;
+  // ---- Confetti guard: only run once per results state ----
+  if (typeof startConfetti === 'function') {
+    var __orig_startConfetti = startConfetti;
+    window.__hasShownResultsConfetti = false;
+    window.startConfetti = function(){
+      if (window.__hasShownResultsConfetti) return;
+      window.__hasShownResultsConfetti = true;
+      return __orig_startConfetti();
+    };
+    // Reset guard when leaving 'results'
     try{
-      insertWaitNotice();
-      var ref = firebase.database().ref('rooms/'+roomCode);
-      ref.on('value', function(snap){
-        var room = snap.val() || {};
-        var note = document.getElementById('wordWaitNote');
-        if (!note) return;
-        // Determine if current user is the first chooser (heuristic: host or first in order)
-        var isChooser = false;
-        if (room.host && room.host === username) isChooser = true;
-        if (!isChooser && Array.isArray(room.order) && room.order.length > 0 && room.order[0] === username) isChooser = true;
-        // Show only when state is wordSelect and user is NOT chooser
-        if (room.state === 'wordSelect' && !isChooser) {
-          note.style.display = 'block';
-        } else {
-          note.style.display = 'none';
-        }
-      });
-    }catch(e){ /* swallow */ }
+      if (window.firebase && window.roomCode){
+        firebase.database().ref('rooms/'+roomCode+'/state').on('value', function(s){
+          var st = s.val();
+          if (st !== 'results') window.__hasShownResultsConfetti = false;
+        });
+      }
+    }catch(e){}
   }
-
-  // Hook into room join/create paths to attach listener once we have a roomCode
-  if (typeof createRoom === 'function') {
-    const __orig_createRoom = createRoom;
-    window.createRoom = function(){
-      var r = __orig_createRoom.apply(this, arguments);
-      // defer to allow roomCode to be set
-      setTimeout(setupWaitNoticeListener, 200);
-      return r;
-    };
-  }
-  if (typeof joinRoomPrompt === 'function') {
-    const __orig_joinRoomPrompt = joinRoomPrompt;
-    window.joinRoomPrompt = function(){
-      var r = __orig_joinRoomPrompt.apply(this, arguments);
-      setTimeout(setupWaitNoticeListener, 600); // allow async join
-      return r;
-    };
-  }
-
-  // Also try on load (in case roomCode is assigned earlier)
-  window.addEventListener('load', function(){ setTimeout(setupWaitNoticeListener, 1200); });
 })();
 </script>
-<!-- END: Minimal Patch -->
+<!-- END: Safe Patch -->
+
 </body>
 </html>
