@@ -3,106 +3,65 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
 <title>🎨 Telestrations Game 🎨</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  body { font-family: Arial, sans-serif; background-color: #e6f3ff; text-align: center; margin: 0; padding: 0; color:#123; }
-  h1 { color: #0b66b2; margin: 18px 0 8px; cursor:pointer; }
-  .container { max-width: 900px; margin: 12px auto; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); position: relative; }
-  button { background-color: #007bff; color: white; border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; }
-  button:hover { background-color: #0056b3; }
-  input { padding: 8px; margin: 5px; width: 80%; border-radius: 8px; border: 1px solid #cbd6e2; }
-  canvas { border: 2px solid #007bff; border-radius: 10px; margin-top: 10px; background: white; touch-action: none; max-width: 100%; }
+  :root {
+    --bg: #f5f7fa;
+    --panel: #ffffff;
+    --text: #1e1e1e;
+    --muted: #5b6b7a;
+    --primary: #007bff;
+    --primary-dark: #0065d4;
+    --border: #cbd5e0;
+    --border-soft: #e2e8f0;
+    --accent: #0b66b2;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "Poppins", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background-color: var(--bg); color: var(--text); text-align: center; margin: 0; padding: 0; }
+  h1 { color: var(--accent); margin: 22px 0 10px; cursor: pointer; font-weight: 600; }
+  .container { max-width: 980px; margin: 14px auto; background: var(--panel); padding: 22px; border-radius: 14px; border: 2px solid var(--border); box-shadow: 0 4px 10px rgba(0,0,0,0.08); position: relative; }
+  button { background-color: var(--primary); color: #fff; border: none; padding: 10px 16px; border-radius: 10px; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background-color .2s ease; font-weight: 600; }
+  button:hover { background-color: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
+  input { padding: 10px 12px; margin: 6px; width: 80%; max-width: 520px; border-radius: 10px; border: 2px solid var(--border); outline: none; }
+  input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,123,255,.15); }
+  canvas { border: 2px solid var(--border-soft); border-radius: 12px; margin-top: 12px; background: #fff; touch-action: none; max-width: 100%; box-shadow: inset 0 0 6px rgba(0,0,0,0.08); }
   .hidden { display: none; }
-  ul { list-style: none; padding: 0; }
-  .muted { color:#517089; font-size:14px; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  .muted { color: var(--muted); font-size: 14px; }
 
-  /* Room code banner */
-  #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
+  #roomBanner { display: none; background: #eef4fb; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px 0; font-weight: 600; color: var(--accent); }
 
-  /* Turn order box (smaller & centered) */
-  .turnOrderBox {
-    display:none;
-    max-width: 400px;      /* smaller than before */
-    margin: 15px auto;     /* center horizontally */
-    background:#f7fbff;
-    border:1px solid #c4e1ff;
-    border-radius:10px;
-    padding:8px 10px;
-    text-align:center;     /* center content */
-  }
-  .turnOrderBox h4 { margin:0 0 6px; color:#0b66b2; }
-  .turnOrderList { padding:0; margin:0; text-align:center; }
-  .turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
-  .turnOrderList li.current::before { content:"→ "; color:#0b66b2; font-weight:700; }
+  .turnOrderBox { display: none; max-width: 420px; margin: 16px auto 0; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; text-align: center; }
+  .turnOrderBox h4 { margin: 0 0 8px; color: var(--accent); font-weight: 600; }
+  .turnOrderList { padding: 0; margin: 0; text-align: center; }
+  .turnOrderList li { list-style: none; padding: 4px 0; font-size: 15px; }
+  .turnOrderList li.current::before { content: "→ "; color: var(--accent); font-weight: 700; }
+  .activePen { background-color: #22c55e !important; }
 
-  /* Pen selection highlight */
-  .activePen { background-color:#28a745 !important; }
+  .disconnected { color: #9aa7b4; opacity: .7; }
 
-  /* NEW: Disconnected styling */
-  .disconnected { color:#9aa7b4; opacity:0.7; }
-
-  /* Desktop tweaks */
   @media (min-width: 768px) {
-    #usernameInput { width: 40%; }
-    .infoPanel { width: 60%; margin: 0 auto; }
-    #guessInput { width: 50%; }
+    #usernameInput { width: 48%; }
+    .infoPanel { width: 70%; margin: 0 auto; }
+    #guessInput { width: 56%; }
   }
+  .infoPanel { margin-top: 12px; padding: 12px; border-radius: 12px; background: #f1f5f9; border: 1px solid var(--border); color: #0b3f6b; text-align: left; }
+  .infoPanel h4 { margin: 0 0 8px; color: var(--accent); text-align: center; font-weight: 600; }
+  .infoPanel ul { margin: 0; padding-left: 18px; }
+  .infoPanel li { margin: 5px 0; list-style: disc; }
 
-  /* Instruction panel */
-  .infoPanel {
-    margin-top: 12px; padding:10px; border-radius:10px;
-    background:#eaf5ff; border:1px solid #cfe6ff; color:#0b3f6b; text-align:left;
-  }
-  .infoPanel h4 { margin:0 0 6px; color:#0b66b2; text-align:center; }
-  .infoPanel ul { margin:0; padding-left:18px; }
-  .infoPanel li { margin:4px 0; list-style: disc; }
+  #resultsList { text-align: center; }
+  .resultStepHeader { text-align: center; font-weight: 700; color: var(--accent); margin: 22px 0 12px; font-size: 1.1em; }
+  .resultDrawing { display: block; margin: 10px auto; border: 2px solid #90a4b8; border-radius: 12px; background-color: #fff; padding: 6px; max-width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .resultGuess { display: inline-block; background-color: #f0f6ff; border: 1px solid #b6d4ff; border-radius: 12px; padding: 10px 16px; text-align: center; color: var(--text); margin: 14px auto; max-width: 92%; word-wrap: break-word; }
+  .resultDivider { margin: 30px 0; border-top: 1px dotted #c3d3e6; }
 
-  /* ---------------- Results visual polish ---------------- */
-  #resultsList { text-align: center; } /* NEW: ensure children (including guess boxes) can center */
-  .resultStepHeader {
-    text-align: center;
-    font-weight: bold;
-    color: #0b66b2;
-    margin: 20px 0 10px 0;    /* spacing above & below header */
-    font-size: 1.1em;
-  }
-  .resultDrawing {
-    display: block;
-    margin: 10px auto;
-    border: 2px solid #004b91; /* darker border to stand out */
-    border-radius: 10px;
-    background-color: #f9fbff;
-    padding: 5px;
-    max-width: 100%;
-  }
-  .resultGuess {
-    display: inline-block;    /* centers via parent text-align:center */
-    background-color: #f0f6ff;
-    border: 1px solid #b6d4ff;
-    border-radius: 10px;
-    padding: 8px 14px;
-    text-align: center;
-    color: #123;
-    margin: 12px auto;
-    max-width: 90%;
-    word-wrap: break-word;
-  }
-  .resultDivider {
-    margin: 28px 0;          /* extra spacing between steps */
-    border-top: 1px dotted #a3c9f7;
-  }
-  /* ------------------------------------------------------ */
+  #restartBox { margin-top: 20px; background: #f1f5f9; border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 520px; margin-left: auto; margin-right: auto; }
 
-  /* Restart box */
-  #restartBox {
-    margin-top: 20px; background:#eaf5ff; border:1px solid #cfe6ff; border-radius:10px;
-    padding:15px; max-width:500px; margin-left:auto; margin-right:auto;
-  }
-
-  /* Mobile two-row drawing controls */
   @media (max-width: 767px) {
-    #drawControlsTop, #drawControlsBottom { display:flex; justify-content:center; flex-wrap:wrap; gap:6px; }
+    #drawControlsTop, #drawControlsBottom { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
   }
 </style>
 </head>
@@ -110,13 +69,11 @@
   <h1 onclick="resetToHome()">🎨 Telestrations Game 🎨</h1>
   <div id="roomBanner">Room Code: <span id="bannerCode"></span></div>
 
-  <!-- HOME -->
   <div class="container" id="homeScreen">
     <h3>Enter a username:</h3>
     <input type="text" id="usernameInput" placeholder="Your username" maxlength="25"><br><br>
     <button onclick="createRoom()">Create Room</button>
     <button onclick="joinRoomPrompt()">Join Room</button>
-
     <div class="infoPanel">
       <h4>Here's how the game works:</h4>
       <ul>
@@ -128,13 +85,11 @@
     </div>
   </div>
 
-  <!-- LOBBY -->
   <div class="container hidden" id="lobbyScreen">
     <h2>Room Code: <span id="roomCodeDisplay"></span></h2>
     <ul id="playerList"></ul>
     <p class="muted" id="lobbyMsg"></p>
     <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
-
     <div class="infoPanel">
       <h4>Here's how the game works:</h4>
       <ul>
@@ -144,21 +99,18 @@
         <li>See the full chain at the end!</li>
       </ul>
     </div>
-
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- WORD SELECT -->
   <div class="container hidden" id="wordSelectScreen">
     <h3>Pick a Word or Phrase</h3>
     <input type="text" id="customWord" placeholder="Enter custom word/phrase"><br><br>
-    <button onclick="suggestWord()">Suggest Word/Phrase</button> <!-- NEW: button text -->
-    <p id="suggestedWord" style="font-weight:700;color:#0b66b2"></p>
+    <button onclick="suggestWord()">Suggest Word/Phrase</button>
+    <p id="suggestedWord" style="font-weight:700;color:var(--accent)"></p>
     <button onclick="confirmWord()">Confirm & Start Round</button>
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- DRAW -->
   <div class="container hidden" id="drawingScreen">
     <h3 id="drawPrompt"></h3>
     <div id="drawControlsTop">
@@ -176,7 +128,6 @@
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- GUESS -->
   <div class="container hidden" id="guessScreen">
     <h3>Guess the drawing!</h3>
     <input id="guessInput" type="text" placeholder="Type your guess here" />
@@ -184,22 +135,19 @@
       <span class="timer" id="guessTimer">30s</span>
       <button onclick="submitGuess()">Submit Guess</button>
     </div>
-    <img id="guessImage" style="max-width:100%;border:1px solid #ddd;border-radius:8px;margin-top:10px;" />
+    <img id="guessImage" style="max-width:100%;border:1px solid var(--border-soft);border-radius:10px;margin-top:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);" />
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- WAIT -->
   <div class="container hidden" id="waitScreen">
     <p id="waitMsg">Waiting…</p>
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
-  <!-- RESULTS -->
   <div class="container hidden" id="resultsScreen">
-    <h2 style="font-size:1.6em;color:#0b66b2;">Results Summary</h2>
-    <div style="font-weight:700;color:#0b66b2;font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
-    <div id="resultsList" style="margin-top:12px;"></div> <!-- NEW: removed text-align:left -->
-
+    <h2 style="font-size:1.6em;color:var(--accent);">Results Summary</h2>
+    <div style="font-weight:700;color:var(--accent);font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
+    <div id="resultsList" style="margin-top:12px;"></div>
     <div id="restartBox">
       <p><b>Ready for another round?</b><br>
       Restart with the same players and shuffle everyone (including the host).</p>
@@ -207,12 +155,10 @@
     </div>
   </div>
 
-  <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
-  /* ---------- FIREBASE ---------- */
   const firebaseConfig = {
     apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
     authDomain: "telestrations-game-aa386.firebaseapp.com",
@@ -225,11 +171,9 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  /* ---------- STATE ---------- */
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
 
-  /* ---------- WORD LIST (static only; odd & funny 100+) ---------- */
   const phrases = [
     "Penguin on vacation","Cactus karaoke","Wi-Fi ghost","Banana in a tuxedo","Invisible umbrella",
     "Robot doing yoga","Haunted toaster","Moonwalking giraffe","Submarine in the desert","Laptop campfire",
@@ -261,7 +205,6 @@
     "Elevator to nowhere","Moon cheese factory","Robot gardening in space","Umbrella playing poker","Pillow fight tournament"
   ];
 
-  /* ---------- UTIL ---------- */
   const byId = id => document.getElementById(id);
   function showOnly(id){
     ["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"]
@@ -272,7 +215,6 @@
   function setBanner(code){ byId('bannerCode').textContent = code; byId('roomBanner').style.display='block'; }
   function resetToHome(){ location.reload(); }
 
-  /* ---------- NEW: PRESENCE (mark connected clients & auto-remove on disconnect) ---------- */
   function setupPresence(){
     if(!roomCode || !username) return;
     const connRef = db.ref(`rooms/${roomCode}/connections/${username}`);
@@ -280,15 +222,12 @@
     connRef.onDisconnect().remove();
   }
 
-  /* ---------- CREATE / JOIN ---------- */
   function createRoom(){
     username = byId('usernameInput').value.trim();
     if(!username) return alert("Enter a username first");
     isHost = true;
     roomCode = Math.random().toString(36).substring(2,6).toUpperCase();
     setBanner(roomCode);
-
-    /* ---------- CLEANUP: delete any rooms 24h+ old before creating a new one ---------- */
     const now = Date.now();
     const roomsRef = db.ref('rooms');
     roomsRef.once('value').then(snapshot=>{
@@ -299,12 +238,11 @@
         }
       });
     }).then(()=>{
-      /* ---------- create the room (note createdAt) ---------- */
       return db.ref('rooms/'+roomCode).set({
         host: username, players: [username], state:'lobby',
-        createdAt: now, // NEW: timestamp for cleanup checks
+        createdAt: now,
         order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null,
-        connections: {} // NEW: presence map
+        connections: {}
       });
     }).then(()=>{
       setupPresence();
@@ -325,29 +263,23 @@
     roomRef.once('value').then(s=>{
       if(!s.exists()){ alert("Room not found"); return; }
       const r = s.val();
-
-      // (Optional safeguard) If a room somehow lived beyond 24h and wasn't purged yet:
       const now = Date.now();
       if (r.createdAt && (now - r.createdAt > 24*60*60*1000)) {
         alert("This room has expired and will be deleted. Please create a new one.");
         roomRef.remove();
         return;
       }
-
       const players = r.players || [];
       if(!players.includes(username)) players.push(username);
-
-      // 🔹 FIX: Wait for .set() to finish before continuing (prevents join race + false disconnect flicker)
       return roomRef.child('players').set(players).then(() => {
         isHost = false;
-        setupPresence();   // register connection AFTER player list is saved
-        subscribeRoom();   // start listeners
-        showLobby();       // show lobby on the joiner’s client
+        setupPresence();
+        subscribeRoom();
+        showLobby();
       });
     });
   }
 
-  /* ---------- LOBBY ---------- */
   function showLobby(){
     showOnly('lobbyScreen');
     byId('roomCodeDisplay').innerText = roomCode;
@@ -355,7 +287,6 @@
 
     db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
       const list = snap.val() || [];
-      // NEW: read connections to mark disconnected
       db.ref('rooms/'+roomCode+'/connections').once('value').then(csnap=>{
         const connMap = csnap.val()||{};
         const connected = Object.keys(connMap);
@@ -377,14 +308,12 @@
       const room = s.val();
       const players = room.players || [];
       const host = players[0];
-      const others = shuffle(players.slice(1)); // randomize everyone except host
+      const others = shuffle(players.slice(1));
       const order = [host, ...others];
       db.ref('rooms/'+roomCode).update({ order, currentIndex: 0, state: 'wordSelect', turnStart:null });
     });
   }
 
-  /* ---------- WORD PICK ---------- */
-  // NEW: Static-only suggestion (API removed)
   function suggestWord(){
     byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
   }
@@ -396,7 +325,6 @@
     db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: Date.now() });
   }
 
-  /* ---------- ROOM SUBSCRIBE / STATE MACHINE ---------- */
   let roomListenerAttached = false;
   function subscribeRoom(){
     if(roomListenerAttached) return;
@@ -411,7 +339,6 @@
 
       if(room.state === 'lobby'){ showLobby(); return; }
 
-      // FIX: word selection always belongs to the first player in current order (persists across restarts)
       if(room.state === 'wordSelect'){
         const firstPlayer = room.order && room.order.length ? room.order[0] : room.host;
         if(username === firstPlayer){
@@ -448,7 +375,6 @@
     });
   }
 
-  /* ---------- SHARED TURN COUNTDOWN (Turn Order box) ---------- */
   function startSharedTurnTicker(room){
     stopSharedTurnTicker();
     updateTurnTimerLabels(room);
@@ -487,18 +413,17 @@
     boxes.forEach(b => b.style.display = show ? 'block' : 'none');
   }
 
-  /* ---------- DRAWING (mobile align + undo pen-size preservation) ---------- */
   const canvas = byId('drawCanvas');
   const ctx = canvas.getContext('2d');
 
   function resetCanvasBackground(){
-    ctx.fillStyle = "white";
+    ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,canvas.width,canvas.height);
   }
   resetCanvasBackground();
 
   let drawing=false;
-  let strokes=[]; // [{ size, points: [{x,y},...] }]
+  let strokes=[];
   let currentStroke=null;
 
   function highlightPen(btnId){
@@ -508,13 +433,11 @@
   function setPenSize(size){ penSize=size; highlightPen(size===2?'smallPen':size===6?'mediumPen':'largePen'); }
   setPenSize(6);
 
-  // Scale-aware position calculation for mobile & desktop
   function getCanvasPos(e){
     const r = canvas.getBoundingClientRect();
     const scaleX = canvas.width  / r.width;
     const scaleY = canvas.height / r.height;
     let clientX, clientY;
-
     if (e.touches && e.touches.length){
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
@@ -522,7 +445,6 @@
       clientX = (e.clientX !== undefined) ? e.clientX : (e.x || 0);
       clientY = (e.clientY !== undefined) ? e.clientY : (e.y || 0);
     }
-
     const x = (clientX - r.left) * scaleX;
     const y = (clientY - r.top)  * scaleY;
     return { x, y };
@@ -550,11 +472,9 @@
   function addPoint(e){
     const p = getCanvasPos(e);
     currentStroke.points.push(p);
-
-    ctx.lineWidth = currentStroke.size; // use stroke's own size
+    ctx.lineWidth = currentStroke.size;
     ctx.lineCap = "round";
     ctx.strokeStyle = "black";
-
     const pts = currentStroke.points;
     if(pts.length === 1){
       ctx.beginPath();
@@ -565,12 +485,10 @@
     }
   }
 
-  // Mouse events
   canvas.addEventListener('mousedown', beginStroke);
   canvas.addEventListener('mousemove', moveStroke);
   canvas.addEventListener('mouseup', endStroke);
   canvas.addEventListener('mouseleave', endStroke);
-  // Touch events
   canvas.addEventListener('touchstart', e=>{ e.preventDefault(); beginStroke(e); }, {passive:false});
   canvas.addEventListener('touchmove',  e=>{ e.preventDefault(); moveStroke(e);  }, {passive:false});
   canvas.addEventListener('touchend',   e=>{ e.preventDefault(); endStroke();     }, {passive:false});
@@ -597,13 +515,11 @@
     byId('drawPrompt').innerText = (idx===0)
       ? `Draw the word/phrase: "${room.word}"`
       : `Draw this phrase: "${room.gameData[idx-1].data}"`;
-    startDrawTimer(room); // pass room to sync from turnStart
+    startDrawTimer(room);
   }
 
-  // forced=false when user clicks submit; forced=true when timer expires
   function submitDrawing(forced){
     if(!forced && strokes.length===0){
-      // Do NOT reset timer. Just warn; timer continues (synced by turnStart).
       alert("Please add at least one stroke before submitting.");
       return;
     }
@@ -620,15 +536,15 @@
       } else {
         u['rooms/'+roomCode+'/currentIndex'] = next;
         u['rooms/'+roomCode+'/state'] = 'guessing';
-        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start guess phase timer
+        u['rooms/'+roomCode+'/turnStart'] = Date.now();
       }
       db.ref().update(u);
     });
   }
 
   function startDrawTimer(room){
-    stopDrawTimer(); // ensure no duplicate intervals
-    const start = room.turnStart || Date.now(); // fallback for safety
+    stopDrawTimer();
+    const start = room.turnStart || Date.now();
     const duration = 60;
     function tick(){
       const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
@@ -640,7 +556,6 @@
   }
   function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
 
-  /* ---------- GUESSING ---------- */
   function startGuessingPhase(room, idx){
     showOnly('guessScreen');
     const prev = room.gameData[idx-1];
@@ -650,11 +565,10 @@
   }
 
   function submitGuess(){
-    // If empty, warn but DO NOT stop or reset timer; just let it continue
     const val = (byId('guessInput').value || '').trim();
     if(!val){
       alert("Please type a guess (or wait for the timer to auto-submit).");
-      return; // keep local timer running; shared timer unaffected
+      return;
     }
     stopGuessTimer();
     const g = val;
@@ -669,7 +583,7 @@
       } else {
         u['rooms/'+roomCode+'/currentIndex'] = next;
         u['rooms/'+roomCode+'/state'] = 'drawing';
-        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start draw phase timer
+        u['rooms/'+roomCode+'/turnStart'] = Date.now();
       }
       db.ref().update(u);
     });
@@ -683,7 +597,6 @@
       const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
       byId('guessTimer').innerText = remaining + 's';
       if(remaining <= 0){
-        // auto-submit "No guess" on timeout
         byId('guessInput').value = '';
         stopGuessTimer();
         db.ref('rooms/'+roomCode).once('value').then(s=>{
@@ -708,7 +621,6 @@
   }
   function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
 
-  /* ---------- RESULTS ---------- */
   function showResults(room){
     showOnly('resultsScreen');
     byId('finalWord').innerText = room.word || '';
@@ -720,27 +632,23 @@
       const e = room.gameData[step];
       const block = document.createElement('div');
 
-      // Centered, bold header (Step N — player (type))
       const header = document.createElement('div');
       header.classList.add('resultStepHeader');
       header.innerText = `Step ${step+1} — ${e.player} (${e.type})`;
       block.appendChild(header);
 
       if(e.type === 'draw'){
-        // Centered image with darker border + padding
         const img = document.createElement('img');
         img.src = e.data;
         img.classList.add('resultDrawing');
         block.appendChild(img);
       } else {
-        // Centered, boxed guess (parent #resultsList now centers children)
         const guessBox = document.createElement('div');
         guessBox.classList.add('resultGuess');
         guessBox.innerText = e.data;
         block.appendChild(guessBox);
       }
 
-      // Extra-spaced dotted divider between steps
       const divider = document.createElement('div');
       divider.classList.add('resultDivider');
       block.appendChild(divider);
@@ -749,14 +657,13 @@
     });
   }
 
-  /* ---------- RESTART (shuffle everyone incl. host) ---------- */
   function restartGame(){
     if(!roomCode) return;
     db.ref('rooms/'+roomCode).once('value').then(s=>{
       const room = s.val();
       if(!room) return;
       const players = (room.players || []).slice();
-      const newOrder = shuffle(players); // shuffle everyone, including host
+      const newOrder = shuffle(players);
       const u = {
         ['rooms/'+roomCode+'/order']: newOrder,
         ['rooms/'+roomCode+'/currentIndex']: 0,
@@ -771,4 +678,3 @@
   </script>
 </body>
 </html>
-
