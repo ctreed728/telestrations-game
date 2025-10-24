@@ -20,10 +20,7 @@
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
 
   /* Turn order box */
-  .turnOrderBox {
-    display:none; max-width:600px; margin:15px auto 0 auto;
-    background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left;
-  }
+  .turnOrderBox { display:none; max-width:600px; margin:15px auto 0 auto; background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left; }
   .turnOrderBox h4 { margin:0 0 6px; color:#0b66b2; }
   .turnOrderList { padding:0; margin:0; }
   .turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
@@ -32,7 +29,7 @@
   /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
 
-  /* Disconnected style */
+  /* NEW: Disconnected styling */
   .disconnected { color:#9aa7b4; opacity:0.7; }
 
   /* Desktop tweaks */
@@ -186,7 +183,7 @@
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
 
-  /* ---------- WORD LIST (expanded) ---------- */
+  /* ---------- WORD LIST (static fallback) ---------- */
   const phrases = [
     "Barking up the wrong tree","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
     "Robot yoga","Haunted smartphone","Fish out of water","Jumping the gun","Raining cats and dogs",
@@ -215,7 +212,7 @@
   function setBanner(code){ byId('bannerCode').textContent = code; byId('roomBanner').style.display='block'; }
   function resetToHome(){ location.reload(); }
 
-  /* ---------- PRESENCE (NEW) ---------- */
+  /* ---------- NEW: PRESENCE (mark connected clients & auto-remove on disconnect) ---------- */
   function setupPresence(){
     if(!roomCode || !username) return;
     const connRef = db.ref(`rooms/${roomCode}/connections/${username}`);
@@ -230,10 +227,25 @@
     isHost = true;
     roomCode = Math.random().toString(36).substring(2,6).toUpperCase();
     setBanner(roomCode);
-    db.ref('rooms/'+roomCode).set({
-      host: username, players: [username], state:'lobby',
-      order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null,
-      connections: {} // presence map
+
+    /* ---------- CLEANUP: delete any rooms 24h+ old before creating a new one ---------- */
+    const now = Date.now();
+    const roomsRef = db.ref('rooms');
+    roomsRef.once('value').then(snapshot=>{
+      snapshot.forEach(roomSnap=>{
+        const room = roomSnap.val();
+        if (room && room.createdAt && (now - room.createdAt > 24*60*60*1000)) {
+          roomSnap.ref.remove();
+        }
+      });
+    }).then(()=>{
+      /* ---------- create the room (note createdAt) ---------- */
+      return db.ref('rooms/'+roomCode).set({
+        host: username, players: [username], state:'lobby',
+        createdAt: now, // NEW: timestamp for cleanup checks
+        order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null,
+        connections: {} // NEW: presence map
+      });
     }).then(()=>{
       setupPresence();
       subscribeRoom();
@@ -253,12 +265,22 @@
     roomRef.once('value').then(s=>{
       if(!s.exists()){ alert("Room not found"); return; }
       const r = s.val();
+
+      // (Optional safeguard) If a room somehow lived beyond 24h and wasn't purged yet:
+      const now = Date.now();
+      if (r.createdAt && (now - r.createdAt > 24*60*60*1000)) {
+        alert("This room has expired and will be deleted. Please create a new one.");
+        roomRef.remove();
+        return;
+      }
+
       const players = r.players || [];
       if(!players.includes(username)) players.push(username);
       return roomRef.child('players').set(players);
-    }).then(()=>{
+    }).then((res)=>{
+      if(res === undefined) return; // early-return case where room was removed
       isHost = false;
-      setupPresence(); // mark connected
+      setupPresence(); // NEW: mark connected
       subscribeRoom();
       showLobby();
     });
@@ -272,7 +294,7 @@
 
     db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
       const list = snap.val() || [];
-      // read connections to mark disconnected
+      // NEW: read connections to mark disconnected
       db.ref('rooms/'+roomCode+'/connections').once('value').then(csnap=>{
         const connMap = csnap.val()||{};
         const connected = Object.keys(connMap);
@@ -301,9 +323,21 @@
   }
 
   /* ---------- WORD PICK ---------- */
+  // NEW: Live phrase fetch with fallback to local static list (short phrases preferred)
   function suggestWord(){
-    byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
+    // Use an open API for short phrases/quotes; keep maxLength short for playful prompts
+    fetch('https://api.quotable.io/random?maxLength=40')
+      .then(res => res.ok ? res.json() : Promise.reject(new Error('Bad status')))
+      .then(data => {
+        const phrase = (data && data.content) ? data.content : phrases[Math.floor(Math.random()*phrases.length)];
+        byId('suggestedWord').innerText = phrase;
+      })
+      .catch(() => {
+        // Fallback: static local list
+        byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
+      });
   }
+
   function confirmWord(){
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
@@ -326,8 +360,8 @@
 
       if(room.state === 'lobby'){ showLobby(); return; }
 
+      // FIX: word selection always belongs to the first player in current order (persists across restarts)
       if(room.state === 'wordSelect'){
-        // UPDATED: the first player in the order chooses the word (persists across restarts)
         const firstPlayer = room.order && room.order.length ? room.order[0] : room.host;
         if(username === firstPlayer){
           showOnly('wordSelectScreen');
