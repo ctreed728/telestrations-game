@@ -15,7 +15,11 @@
   .hidden { display: none; }
   ul { list-style: none; padding: 0; }
   .muted { color:#517089; font-size:14px; }
+
+  /* Room code banner */
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
+
+  /* Turn order box */
   .turnOrderBox {
     display:none; max-width:600px; margin:15px auto 0 auto;
     background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left;
@@ -24,13 +28,18 @@
   .turnOrderList { padding:0; margin:0; }
   .turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
   .turnOrderList li.current::before { content:"→ "; color:#0b66b2; font-weight:700; }
-  .viewer { color:#9aa9b8; }
+
+  /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
+
+  /* Desktop tweaks */
   @media (min-width: 768px) {
     #usernameInput { width: 40%; }
     .infoPanel { width: 60%; margin: 0 auto; }
     #guessInput { width: 50%; }
   }
+
+  /* Instruction panel */
   .infoPanel {
     margin-top: 12px; padding:10px; border-radius:10px;
     background:#eaf5ff; border:1px solid #cfe6ff; color:#0b3f6b; text-align:left;
@@ -38,10 +47,14 @@
   .infoPanel h4 { margin:0 0 6px; color:#0b66b2; text-align:center; }
   .infoPanel ul { margin:0; padding-left:18px; }
   .infoPanel li { margin:4px 0; list-style: disc; }
+
+  /* Results restart box */
   #restartBox {
     margin-top: 20px; background:#eaf5ff; border:1px solid #cfe6ff; border-radius:10px;
     padding:15px; max-width:500px; margin-left:auto; margin-right:auto;
   }
+
+  /* Mobile two-row drawing controls */
   @media (max-width: 767px) {
     #drawControlsTop, #drawControlsBottom { display:flex; justify-content:center; flex-wrap:wrap; gap:6px; }
   }
@@ -57,6 +70,7 @@
     <input type="text" id="usernameInput" placeholder="Your username" maxlength="25"><br><br>
     <button onclick="createRoom()">Create Room</button>
     <button onclick="joinRoomPrompt()">Join Room</button>
+
     <div class="infoPanel">
       <h4>Here's how the game works:</h4>
       <ul>
@@ -74,6 +88,7 @@
     <ul id="playerList"></ul>
     <p class="muted" id="lobbyMsg"></p>
     <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
+
     <div class="infoPanel">
       <h4>Here's how the game works:</h4>
       <ul>
@@ -83,6 +98,7 @@
         <li>See the full chain at the end!</li>
       </ul>
     </div>
+
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
@@ -137,8 +153,10 @@
     <h2 style="font-size:1.6em;color:#0b66b2;">Results Summary</h2>
     <div style="font-weight:700;color:#0b66b2;font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
     <div id="resultsList" style="text-align:left;margin-top:12px;"></div>
+
     <div id="restartBox">
-      <p><b>Ready for another round?</b><br>Restart with the same players and shuffle everyone (including the host).</p>
+      <p><b>Ready for another round?</b><br>
+      Restart with the same players and shuffle everyone (including the host).</p>
       <button onclick="restartGame()">🔁 Restart Game</button>
     </div>
   </div>
@@ -148,6 +166,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
+  /* ---------- FIREBASE ---------- */
   const firebaseConfig = {
     apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
     authDomain: "telestrations-game-aa386.firebaseapp.com",
@@ -160,10 +179,11 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
+  /* ---------- STATE ---------- */
   let username="", roomCode="", isHost=false, penSize=6;
-  let drawInterval=null, guessInterval=null, turnTicker=null, heartbeatTimer=null;
-  let presenceListenerAttached=false, roomListenerAttached=false;
+  let drawInterval=null, guessInterval=null, turnTicker=null;
 
+  /* ---------- WORD LIST (expanded) ---------- */
   const phrases = [
     "Barking up the wrong tree","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
     "Robot yoga","Haunted smartphone","Fish out of water","Jumping the gun","Raining cats and dogs",
@@ -181,29 +201,30 @@
     "In hot water","By the skin of your teeth"
   ];
 
+  /* ---------- UTIL ---------- */
   const byId = id => document.getElementById(id);
-  function showOnly(id){["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"].forEach(el=>byId(el).classList.add("hidden"));byId(id).classList.remove("hidden");}
-  function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-  function setBanner(code){byId('bannerCode').textContent=code;byId('roomBanner').style.display='block';}
-  function resetToHome(){location.reload();}
+  function showOnly(id){
+    ["homeScreen","lobbyScreen","wordSelectScreen","drawingScreen","guessScreen","waitScreen","resultsScreen"]
+      .forEach(el=>byId(el).classList.add("hidden"));
+    byId(id).classList.remove("hidden");
+  }
+  function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+  function setBanner(code){ byId('bannerCode').textContent = code; byId('roomBanner').style.display='block'; }
+  function resetToHome(){ location.reload(); }
 
+  /* ---------- CREATE / JOIN ---------- */
   function createRoom(){
     username = byId('usernameInput').value.trim();
     if(!username) return alert("Enter a username first");
     isHost = true;
     roomCode = Math.random().toString(36).substring(2,6).toUpperCase();
     setBanner(roomCode);
-    const now = Date.now();
     db.ref('rooms/'+roomCode).set({
-      host: username, players: [username], viewers: {}, state:'lobby',
-      order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null,
-      createdAt: now
-    }).then(()=>{
-      runCleanupOnce();
-      attachPresence('player');
-      subscribeRoom();
-      showLobby();
+      host: username, players: [username], state:'lobby',
+      order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null
     });
+    subscribeRoom();
+    showLobby();
   }
 
   function joinRoomPrompt(){
@@ -213,59 +234,30 @@
     if(!code) return;
     roomCode = code.toUpperCase();
     setBanner(roomCode);
+
     const roomRef = db.ref('rooms/'+roomCode);
     roomRef.once('value').then(s=>{
       if(!s.exists()){ alert("Room not found"); return; }
       const r = s.val();
       const players = r.players || [];
-      let role = 'player';
-      if(r.state && r.state !== 'lobby'){
-        const viewers = r.viewers || {};
-        viewers[username] = true;
-        role = 'viewer';
-        if(!players.includes(username)) players.push(username);
-        return roomRef.update({ players, viewers }).then(()=>role);
-      } else {
-        if(!players.includes(username)) players.push(username);
-        return roomRef.child('players').set(players).then(()=>role);
-      }
-    }).then(role=>{
-      if(!role) return;
+      if(!players.includes(username)) players.push(username);
+      return roomRef.child('players').set(players);
+    }).then(()=>{
       isHost = false;
-      runCleanupOnce();
-      attachPresence(role);
       subscribeRoom();
       showLobby();
     });
   }
 
-  function attachPresence(role){
-    if(presenceListenerAttached) return;
-    presenceListenerAttached = true;
-    const presRef = db.ref(`rooms/${roomCode}/presence/${username}`);
-    presRef.set({ online:true, role, lastActive: firebase.database.ServerValue.TIMESTAMP });
-    presRef.onDisconnect().remove();
-    if(heartbeatTimer) clearInterval(heartbeatTimer);
-    heartbeatTimer = setInterval(()=> presRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP), 30000);
-  }
-
+  /* ---------- LOBBY ---------- */
   function showLobby(){
     showOnly('lobbyScreen');
     byId('roomCodeDisplay').innerText = roomCode;
     const listEl = byId('playerList');
-    const playersRef = db.ref('rooms/'+roomCode+'/players');
-    const viewersRef = db.ref('rooms/'+roomCode+'/viewers');
-    playersRef.on('value', snap=>{
-      const viewers = (byId('playerList').dataset.viewers && JSON.parse(byId('playerList').dataset.viewers)) || {};
-      renderPlayers(snap.val() || [], viewers, listEl);
-    });
-    viewersRef.on('value', snap=>{
-      const viewers = snap.val() || {};
-      byId('playerList').dataset.viewers = JSON.stringify(viewers);
-      db.ref('rooms/'+roomCode+'/players').once('value').then(s=> renderPlayers(s.val()||[], viewers, listEl));
-    });
-    db.ref('rooms/'+roomCode+'/players').once('value').then(s=>{
-      const list = s.val() || [];
+
+    db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
+      const list = snap.val() || [];
+      listEl.innerHTML = list.map(p=>`<li>${p}</li>`).join("");
       const canStart = isHost && list.length >= 2 && list.length <= 15;
       byId('startGameBtn').classList.toggle('hidden', !canStart);
       byId('lobbyMsg').innerText = isHost
@@ -274,29 +266,21 @@
     });
   }
 
-  function renderPlayers(list, viewers, container){
-    container.innerHTML = list.map(p=>{
-      const isViewer = viewers && viewers[p];
-      return `<li class="${isViewer?'viewer':''}">${p}${isViewer?' (Viewer)':''}</li>`;
-    }).join("");
-    if(isHost){
-      const canStart = list.length >= 2 && list.length <= 15;
-      byId('startGameBtn').classList.toggle('hidden', !canStart);
-    }
-  }
-
   function startGame(){
     db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const r = s.val();
-      const players = r.players || [];
+      const room = s.val();
+      const players = room.players || [];
       const host = players[0];
-      const others = shuffle(players.slice(1).filter(p=>!(r.viewers||{})[p]));
+      const others = shuffle(players.slice(1)); // randomize everyone except host
       const order = [host, ...others];
       db.ref('rooms/'+roomCode).update({ order, currentIndex: 0, state: 'wordSelect', turnStart:null });
     });
   }
 
-  function suggestWord(){ byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)]; }
+  /* ---------- WORD PICK ---------- */
+  function suggestWord(){
+    byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
+  }
   function confirmWord(){
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
@@ -304,71 +288,55 @@
     db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: Date.now() });
   }
 
-  /* ---- Listener gating state ---- */
-  let prevState=null, prevIndex=-1, prevTurnStart=null;
-
+  /* ---------- ROOM SUBSCRIBE / STATE MACHINE ---------- */
+  let roomListenerAttached = false;
   function subscribeRoom(){
     if(roomListenerAttached) return;
     roomListenerAttached = true;
-
-    db.ref(`rooms/${roomCode}/presence`).on('value', snap=> handlePresenceChange(snap.val() || {}));
 
     db.ref('rooms/'+roomCode).on('value', snapshot=>{
       const room = snapshot.val();
       if(!room){ alert("Room closed"); location.reload(); return; }
 
       renderTurnOrder(room);
+      startSharedTurnTicker(room);
 
-      const idx = room.currentIndex || 0;
-      const shouldTransition =
-        (room.state !== prevState) ||
-        (idx !== prevIndex) ||
-        (room.turnStart !== prevTurnStart);
+      if(room.state === 'lobby'){ showLobby(); return; }
 
-      if(shouldTransition){
-        stopSharedTurnTicker();
-        startSharedTurnTicker(room);
-      } else {
-        return; // ignore presence/heartbeat changes
+      if(room.state === 'wordSelect'){
+        if(isHost) showOnly('wordSelectScreen');
+        else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
+        return;
       }
 
-      if(room.state === 'lobby'){
-        showLobby();
-      } else if(room.state === 'wordSelect'){
-        const order = room.order || [];
-        const current = order[idx] || "";
-        if(current === username) showOnly('wordSelectScreen');
-        else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
-      } else if(room.state === 'drawing'){
-        startDrawingPhase(room, idx);
-      } else if(room.state === 'guessing'){
-        startGuessingPhase(room, idx);
-      } else if(room.state === 'results'){
+      const order = room.order || [];
+      const idx = room.currentIndex || 0;
+      const current = order[idx] || "";
+      const myTurn = (current === username);
+
+      if(room.state === 'drawing'){
+        if(myTurn) startDrawingPhase(room, idx);
+        else { byId('waitMsg').innerText = `${current} is drawing…`; showOnly('waitScreen'); }
+        return;
+      }
+
+      if(room.state === 'guessing'){
+        if(myTurn) startGuessingPhase(room, idx);
+        else { byId('waitMsg').innerText = `${current} is guessing…`; showOnly('waitScreen'); }
+        return;
+      }
+
+      if(room.state === 'results'){
         stopSharedTurnTicker();
         showResults(room);
-      }
-
-      prevState = room.state;
-      prevIndex = idx;
-      prevTurnStart = room.turnStart;
-    });
-  }
-
-  // Presence now only affects lobby player list. It never changes turnStart/state mid-round.
-  function handlePresenceChange(presence){
-    db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const r = s.val(); if(!r) return;
-      if(r.state !== 'lobby') return; // do not modify order/currentIndex during active game
-      const viewers = r.viewers || {};
-      const players = (r.players||[]).slice();
-      const filteredPlayers = players.filter(p => (presence[p] && presence[p].online) || viewers[p]);
-      if(filteredPlayers.length !== players.length){
-        db.ref('rooms/'+roomCode+'/players').set(filteredPlayers);
+        return;
       }
     });
   }
 
+  /* ---------- SHARED TURN COUNTDOWN (Turn Order box) ---------- */
   function startSharedTurnTicker(room){
+    stopSharedTurnTicker();
     updateTurnTimerLabels(room);
     turnTicker = setInterval(()=>updateTurnTimerLabels(room), 1000);
   }
@@ -384,6 +352,7 @@
   function updateTurnTimerLabels(room){
     const lists = document.querySelectorAll('.turnOrderList');
     const order = room.order || [];
+    aconst = 0;
     const idx = room.currentIndex || 0;
     const remaining = computeRemaining(room);
     lists.forEach(list=>{
@@ -392,8 +361,6 @@
         const li = document.createElement('li');
         li.textContent = (i===idx && remaining!=null) ? `${name} (${remaining}s)` : name;
         if(i===idx) li.classList.add('current');
-        const v = room.viewers && room.viewers[name];
-        if(v) li.classList.add('viewer');
         list.appendChild(li);
       });
     });
@@ -404,94 +371,160 @@
     boxes.forEach(b => b.style.display = show ? 'block' : 'none');
   }
 
+  /* ---------- DRAWING (mobile align + undo pen-size preservation) ---------- */
   const canvas = byId('drawCanvas');
   const ctx = canvas.getContext('2d');
-  function resetCanvasBackground(){ ctx.fillStyle="white"; ctx.fillRect(0,0,canvas.width,canvas.height); }
+
+  function resetCanvasBackground(){
+    ctx.fillStyle = "white";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
   resetCanvasBackground();
 
-  let drawing=false, strokes=[], currentStroke=null;
+  let drawing=false;
+  let strokes=[]; // [{ size, points: [{x,y},...] }]
+  let currentStroke=null;
 
-  function highlightPen(btnId){ ['smallPen','mediumPen','largePen'].forEach(id=>byId(id).classList.remove('activePen')); byId(btnId).classList.add('activePen'); }
-  function setPenSize(size){ penSize=size; highlightPen(size===2?'smallPen':size===6?'mediumPen':'largePen'); } setPenSize(6);
+  function highlightPen(btnId){
+    ['smallPen','mediumPen','largePen'].forEach(id=>byId(id).classList.remove('activePen'));
+    byId(btnId).classList.add('activePen');
+  }
+  function setPenSize(size){ penSize=size; highlightPen(size===2?'smallPen':size===6?'mediumPen':'largePen'); }
+  setPenSize(6);
 
+  // Scale-aware position calculation for mobile & desktop
   function getCanvasPos(e){
     const r = canvas.getBoundingClientRect();
     const scaleX = canvas.width  / r.width;
     const scaleY = canvas.height / r.height;
     let clientX, clientY;
-    if (e.touches && e.touches.length){ clientX=e.touches[0].clientX; clientY=e.touches[0].clientY; }
-    else { clientX=(e.clientX!==undefined)?e.clientX:(e.x||0); clientY=(e.clientY!==undefined)?e.clientY:(e.y||0); }
-    return { x:(clientX-r.left)*scaleX, y:(clientY-r.top)*scaleY };
+
+    if (e.touches && e.touches.length){
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = (e.clientX !== undefined) ? e.clientX : (e.x || 0);
+      clientY = (e.clientY !== undefined) ? e.clientY : (e.y || 0);
+    }
+
+    const x = (clientX - r.left) * scaleX;
+    const y = (clientY - r.top)  * scaleY;
+    return { x, y };
   }
 
-  function beginStroke(e){ drawing=true; currentStroke={size:penSize,points:[]}; addPoint(e); }
-  function moveStroke(e){ if(!drawing) return; addPoint(e); }
-  function endStroke(){ if(!drawing) return; drawing=false; if(currentStroke && currentStroke.points.length) strokes.push(currentStroke); currentStroke=null; ctx.beginPath(); }
+  function beginStroke(e){
+    drawing = true;
+    currentStroke = { size: penSize, points: [] };
+    addPoint(e);
+  }
+  function moveStroke(e){
+    if(!drawing) return;
+    addPoint(e);
+  }
+  function endStroke(){
+    if(!drawing) return;
+    drawing = false;
+    if(currentStroke && currentStroke.points.length){
+      strokes.push(currentStroke);
+    }
+    currentStroke = null;
+    ctx.beginPath();
+  }
 
   function addPoint(e){
     const p = getCanvasPos(e);
     currentStroke.points.push(p);
-    ctx.lineWidth = currentStroke.size;
+
+    ctx.lineWidth = currentStroke.size; // use stroke's own size
     ctx.lineCap = "round";
     ctx.strokeStyle = "black";
+
     const pts = currentStroke.points;
-    if(pts.length === 1){ ctx.beginPath(); ctx.moveTo(p.x, p.y); }
-    else { ctx.lineTo(p.x, p.y); ctx.stroke(); }
+    if(pts.length === 1){
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }else{
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
   }
 
-  canvas.addEventListener('mousedown',beginStroke);
-  canvas.addEventListener('mousemove',moveStroke);
-  canvas.addEventListener('mouseup',endStroke);
-  canvas.addEventListener('mouseleave',endStroke);
-  canvas.addEventListener('touchstart',e=>{ e.preventDefault(); beginStroke(e); }, {passive:false});
-  canvas.addEventListener('touchmove', e=>{ e.preventDefault(); moveStroke(e); }, {passive:false});
-  canvas.addEventListener('touchend',  e=>{ e.preventDefault(); endStroke(); }, {passive:false});
+  // Mouse events
+  canvas.addEventListener('mousedown', beginStroke);
+  canvas.addEventListener('mousemove', moveStroke);
+  canvas.addEventListener('mouseup', endStroke);
+  canvas.addEventListener('mouseleave', endStroke);
+  // Touch events
+  canvas.addEventListener('touchstart', e=>{ e.preventDefault(); beginStroke(e); }, {passive:false});
+  canvas.addEventListener('touchmove',  e=>{ e.preventDefault(); moveStroke(e);  }, {passive:false});
+  canvas.addEventListener('touchend',   e=>{ e.preventDefault(); endStroke();     }, {passive:false});
 
   function undo(){ strokes.pop(); redrawAll(); }
   function clearCanvas(){ strokes = []; ctx.clearRect(0,0,canvas.width,canvas.height); resetCanvasBackground(); }
   function redrawAll(){
-    ctx.clearRect(0,0,canvas.width,canvas.height); resetCanvasBackground();
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    resetCanvasBackground();
     for(const s of strokes){
-      const pts = s.points; if(!pts.length) continue;
-      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      const pts = s.points;
+      if(!pts.length) continue;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
       for(let i=1;i<pts.length;i++){ ctx.lineTo(pts[i].x, pts[i].y); }
       ctx.lineWidth = s.size; ctx.strokeStyle = "black"; ctx.lineCap = "round"; ctx.stroke();
     }
   }
 
   function startDrawingPhase(room, idx){
-    showOnly('drawingScreen'); clearCanvas(); setPenSize(6);
-    byId('drawPrompt').innerText = (idx===0) ? `Draw the word/phrase: "${room.word}"` : `Draw this phrase: "${room.gameData[idx-1].data}"`;
-    startDrawTimer(room);
+    showOnly('drawingScreen');
+    clearCanvas();
+    setPenSize(6);
+    byId('drawPrompt').innerText = (idx===0)
+      ? `Draw the word/phrase: "${room.word}"`
+      : `Draw this phrase: "${room.gameData[idx-1].data}"`;
+    startDrawTimer(room); // pass room to sync from turnStart
   }
 
+  // forced=false when user clicks submit; forced=true when timer expires
   function submitDrawing(forced){
-    if(!forced && strokes.length===0){ alert("Please add at least one stroke before submitting."); return; }
+    if(!forced && strokes.length===0){
+      // Do NOT reset timer. Just warn; timer continues (synced by turnStart).
+      alert("Please add at least one stroke before submitting.");
+      return;
+    }
     stopDrawTimer();
     const dataURL = canvas.toDataURL('image/png');
     db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const room = s.val(); const idx = room.currentIndex || 0; const u = {};
+      const room = s.val();
+      const idx = room.currentIndex || 0;
+      const u = {};
       u['rooms/'+roomCode+'/gameData/'+idx] = { type:'draw', data:dataURL, player:username };
       const next = idx + 1;
-      if(next >= (room.order||[]).length){ u['rooms/'+roomCode+'/state'] = 'results'; }
-      else { u['rooms/'+roomCode+'/currentIndex'] = next; u['rooms/'+roomCode+'/state'] = 'guessing'; u['rooms/'+roomCode+'/turnStart'] = Date.now(); }
+      if(next >= (room.order||[]).length){
+        u['rooms/'+roomCode+'/state'] = 'results';
+      } else {
+        u['rooms/'+roomCode+'/currentIndex'] = next;
+        u['rooms/'+roomCode+'/state'] = 'guessing';
+        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start guess phase timer
+      }
       db.ref().update(u);
     });
   }
 
   function startDrawTimer(room){
-    stopDrawTimer();
-    const start = room.turnStart || Date.now();
+    stopDrawTimer(); // ensure no duplicate intervals
+    const start = room.turnStart || Date.now(); // fallback for safety
     const duration = 60;
     function tick(){
       const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
       byId('drawTimer').innerText = remaining + 's';
-      if(remaining <= 0) submitDrawing(true);
+      if(remaining <= 0){ submitDrawing(true); }
     }
-    tick(); drawInterval = setInterval(tick, 1000);
+    tick();
+    drawInterval = setInterval(tick, 1000);
   }
   function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
 
+  /* ---------- GUESSING ---------- */
   function startGuessingPhase(room, idx){
     showOnly('guessScreen');
     const prev = room.gameData[idx-1];
@@ -501,15 +534,27 @@
   }
 
   function submitGuess(){
+    // If empty, warn but DO NOT stop or reset timer; just let it continue
     const val = (byId('guessInput').value || '').trim();
-    if(!val){ alert("Please type a guess (or wait for the timer to auto-submit)."); return; }
+    if(!val){
+      alert("Please type a guess (or wait for the timer to auto-submit).");
+      return; // keep local timer running; shared timer unaffected
+    }
     stopGuessTimer();
+    const g = val;
     db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const room = s.val(); const idx = room.currentIndex || 0; const u = {};
-      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:val, player:username };
+      const room = s.val();
+      const idx = room.currentIndex || 0;
+      const u = {};
+      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:g, player:username };
       const next = idx + 1;
-      if(next >= (room.order||[]).length){ u['rooms/'+roomCode+'/state'] = 'results'; }
-      else { u['rooms/'+roomCode+'/currentIndex'] = next; u['rooms/'+roomCode+'/state'] = 'drawing'; u['rooms/'+roomCode+'/turnStart'] = Date.now(); }
+      if(next >= (room.order||[]).length){
+        u['rooms/'+roomCode+'/state'] = 'results';
+      } else {
+        u['rooms/'+roomCode+'/currentIndex'] = next;
+        u['rooms/'+roomCode+'/state'] = 'drawing';
+        u['rooms/'+roomCode+'/turnStart'] = Date.now(); // start draw phase timer
+      }
       db.ref().update(u);
     });
   }
@@ -522,25 +567,37 @@
       const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
       byId('guessTimer').innerText = remaining + 's';
       if(remaining <= 0){
+        // auto-submit "No guess" on timeout
+        byId('guessInput').value = '';
         stopGuessTimer();
         db.ref('rooms/'+roomCode).once('value').then(s=>{
-          const room = s.val(); const idx = room.currentIndex || 0; const u = {};
+          const room = s.val();
+          const idx = room.currentIndex || 0;
+          const u = {};
           u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
           const next = idx + 1;
-          if(next >= (room.order||[]).length){ u['rooms/'+roomCode+'/state'] = 'results'; }
-          else { u['rooms/'+roomCode+'/currentIndex'] = next; u['rooms/'+roomCode+'/state'] = 'drawing'; u['rooms/'+roomCode+'/turnStart'] = Date.now(); }
+          if(next >= (room.order||[]).length){
+            u['rooms/'+roomCode+'/state'] = 'results';
+          } else {
+            u['rooms/'+roomCode+'/currentIndex'] = next;
+            u['rooms/'+roomCode+'/state'] = 'drawing';
+            u['rooms/'+roomCode+'/turnStart'] = Date.now();
+          }
           db.ref().update(u);
         });
       }
     }
-    tick(); guessInterval = setInterval(tick, 1000);
+    tick();
+    guessInterval = setInterval(tick, 1000);
   }
   function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
 
+  /* ---------- RESULTS ---------- */
   function showResults(room){
     showOnly('resultsScreen');
     byId('finalWord').innerText = room.word || '';
-    const list = byId('resultsList'); list.innerHTML = '';
+    const list = byId('resultsList');
+    list.innerHTML = '';
     const steps = Object.keys(room.gameData||{}).map(n=>parseInt(n,10)).sort((a,b)=>a-b);
     steps.forEach(step=>{
       const e = room.gameData[step];
@@ -554,49 +611,38 @@
       if(e.type === 'draw'){
         const img = document.createElement('img');
         img.src = e.data;
-        img.style.maxWidth='100%'; img.style.border='1px solid #ddd'; img.style.borderRadius='8px'; img.style.marginTop='8px';
+        img.style.maxWidth='100%';
+        img.style.border='1px solid #ddd';
+        img.style.borderRadius='8px';
+        img.style.marginTop='8px';
         block.appendChild(img);
       } else {
         const p = document.createElement('div');
-        p.textContent = e.data; p.style.marginTop='10px';
+        p.textContent = e.data;
+        p.style.marginTop='10px';
         block.appendChild(p);
       }
       list.appendChild(block);
     });
   }
 
+  /* ---------- RESTART (shuffle everyone incl. host) ---------- */
   function restartGame(){
     if(!roomCode) return;
     db.ref('rooms/'+roomCode).once('value').then(s=>{
-      const room = s.val(); if(!room) return;
+      const room = s.val();
+      if(!room) return;
       const players = (room.players || []).slice();
-      const newViewers = {}; // everyone back in next game
-      const newOrder = shuffle(players);
+      const newOrder = shuffle(players); // shuffle everyone, including host
       const u = {
         ['rooms/'+roomCode+'/order']: newOrder,
         ['rooms/'+roomCode+'/currentIndex']: 0,
         ['rooms/'+roomCode+'/gameData']: {},
         ['rooms/'+roomCode+'/word']: null,
         ['rooms/'+roomCode+'/state']: 'wordSelect',
-        ['rooms/'+roomCode+'/turnStart']: null,
-        ['rooms/'+roomCode+'/viewers']: newViewers,
-        ['rooms/'+roomCode+'/host']: newOrder[0]
+        ['rooms/'+roomCode+'/turnStart']: null
       };
       return db.ref().update(u);
-    });
-  }
-
-  function runCleanupOnce(){
-    if(!isHost) return;
-    const cutoff = Date.now() - 24*60*60*1000;
-    db.ref('rooms').once('value').then(s=>{
-      const rooms = s.val()||{};
-      const updates = {};
-      Object.keys(rooms).forEach(code=>{
-        const r = rooms[code];
-        if(r && r.createdAt && r.createdAt < cutoff) updates[`rooms/${code}`] = null;
-      });
-      if(Object.keys(updates).length) db.ref().update(updates);
     });
   }
   </script>
