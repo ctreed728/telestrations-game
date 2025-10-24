@@ -103,7 +103,7 @@
     z-index: 9999;
   }
 
-  .emojiFlow { font-size: 1.3em; letter-spacing: 3px; color: var(--accent); margin-bottom: 12px; }
+  .emojiFlow { font-size: 1.1em; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -270,7 +270,7 @@
     isHost = true;
     roomCode = Math.random().toString(36).substring(2,6).toUpperCase();
     setBanner(roomCode);
-    const now = firebase.database.ServerValue.TIMESTAMP;
+    const now = Date.now();
     const roomsRef = db.ref('rooms');
     roomsRef.once('value').then(snapshot=>{
       snapshot.forEach(roomSnap=>{
@@ -305,7 +305,7 @@
     roomRef.once('value').then(s=>{
       if(!s.exists()){ alert("Room not found"); return; }
       const r = s.val();
-      const now = firebase.database.ServerValue.TIMESTAMP;
+      const now = Date.now();
       if (r.createdAt && (now - r.createdAt > 24*60*60*1000)) {
         alert("This room has expired and will be deleted. Please create a new one.");
         roomRef.remove();
@@ -356,14 +356,14 @@
     });
   }
 
-  function suggestWord(){ 
-  const random = phrases[Math.floor(Math.random()*phrases.length)]; 
-  byId('customWord').value = random; 
+  function suggestWord() {
+  const random = phrases[Math.floor(Math.random() * phrases.length)];
+  byId('customWord').value = random;
 }
 
   function confirmWord(){
     const c = byId('customWord').value.trim();
-    const w = c;
+    const w = c || byId('suggestedWord').innerText;
     if(!w) return alert("Pick or enter a word/phrase first");
     db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: firebase.database.ServerValue.TIMESTAMP });
   }
@@ -447,7 +447,7 @@
     const ts = room.turnStart || 0;
     const dur = getPhaseDuration(room.state);
     if(!ts || !dur) return null;
-    const elapsed = Math.floor((firebase.database.ServerValue.TIMESTAMP - ts)/1000);
+    const elapsed = Math.floor((Date.now() - ts)/1000);
     return Math.max(0, dur - elapsed);
   }
   function updateTurnTimerLabels(room){
@@ -607,8 +607,7 @@
     byId('guessImage').src = prev?.data || '';
 
     if (isNewTurn) {
-      const currentGuess = (byId('guessInput').value || '').trim();
-          byId('guessInput').value = currentGuess;
+      byId('guessInput').value = '';
       lastTurnKey = turnKey;
     }
 
@@ -625,7 +624,7 @@
       const duration = 60;
 
       const tick = () => {
-        const elapsed = Math.floor((firebase.database.ServerValue.TIMESTAMP - ts)/1000);
+        const elapsed = Math.floor((Date.now() - ts)/1000);
         const remaining = Math.max(0, duration - elapsed);
         byId('drawTimer').innerText = remaining + 's';
         if (remaining <= 0) { submitDrawing(true); }
@@ -648,12 +647,11 @@
       const duration = 30;
 
       const tick = () => {
-        const elapsed = Math.floor((firebase.database.ServerValue.TIMESTAMP - ts)/1000);
+        const elapsed = Math.floor((Date.now() - ts)/1000);
         const remaining = Math.max(0, duration - elapsed);
         byId('guessTimer').innerText = remaining + 's';
         if(remaining <= 0){
-          const currentGuess = (byId('guessInput').value || '').trim();
-          byId('guessInput').value = currentGuess;
+          byId('guessInput').value = '';
           stopGuessTimer();
           db.ref('rooms/'+roomCode).once('value').then(s=>{
             const room = s.val();
@@ -666,7 +664,7 @@
             } else {
               u['rooms/'+roomCode+'/currentIndex'] = next;
               u['rooms/'+roomCode+'/state'] = 'drawing';
-              u['rooms/'+roomCode+'/turnStart'] = firebase.database.ServerValue.TIMESTAMP;
+              u['rooms/'+roomCode+'/turnStart'] = Date.now();
             }
             db.ref().update(u);
           });
@@ -699,7 +697,7 @@
       } else {
         u['rooms/'+roomCode+'/currentIndex'] = next;
         u['rooms/'+roomCode+'/state'] = 'guessing';
-        u['rooms/'+roomCode+'/turnStart'] = firebase.database.ServerValue.TIMESTAMP;
+        u['rooms/'+roomCode+'/turnStart'] = Date.now();
       }
       db.ref().update(u);
     });
@@ -724,7 +722,7 @@
       } else {
         u['rooms/'+roomCode+'/currentIndex'] = next;
         u['rooms/'+roomCode+'/state'] = 'drawing';
-        u['rooms/'+roomCode+'/turnStart'] = firebase.database.ServerValue.TIMESTAMP;
+        u['rooms/'+roomCode+'/turnStart'] = Date.now();
       }
       db.ref().update(u);
     });
@@ -871,6 +869,25 @@
     draw();
   }
   /* -------------------------------------------------------------------- */
-  </script>
+  
+
+/* ---- Timer Sync Fix ---- */
+let serverOffset = 0;
+firebase.database().ref(".info/serverTimeOffset").on("value", snap => {
+  serverOffset = snap.val() || 0;
+});
+function getServerNow() { return Date.now() + serverOffset; }
+
+
+/* ---- Partial Guess Auto-Submit ---- */
+const originalSubmitGuess = submitGuess;
+submitGuess = function(){
+  const val = (byId('guessInput').value || '').trim();
+  if (!val) {
+    byId('guessInput').value = 'No guess';
+  }
+  originalSubmitGuess();
+};
+</script>
 </body>
 </html>
