@@ -276,13 +276,14 @@
 
       const players = r.players || [];
       if(!players.includes(username)) players.push(username);
-      return roomRef.child('players').set(players);
-    }).then((res)=>{
-      if(res === undefined) return; // early-return case where room was removed
-      isHost = false;
-      setupPresence(); // NEW: mark connected
-      subscribeRoom();
-      showLobby();
+
+      // 🔹 FIX: Wait for .set() to finish before continuing (prevents “stuck outside lobby” + gray flicker)
+      return roomRef.child('players').set(players).then(() => {
+        isHost = false;
+        setupPresence();   // register connection AFTER player list is saved
+        subscribeRoom();   // start listeners
+        showLobby();       // show lobby on the joiner’s client
+      });
     });
   }
 
@@ -323,9 +324,8 @@
   }
 
   /* ---------- WORD PICK ---------- */
-  // NEW: Live phrase fetch with fallback to local static list (short phrases preferred)
+  // NEW: Live short-phrase fetch with fallback to local static list
   function suggestWord(){
-    // Use an open API for short phrases/quotes; keep maxLength short for playful prompts
     fetch('https://api.quotable.io/random?maxLength=40')
       .then(res => res.ok ? res.json() : Promise.reject(new Error('Bad status')))
       .then(data => {
@@ -333,7 +333,6 @@
         byId('suggestedWord').innerText = phrase;
       })
       .catch(() => {
-        // Fallback: static local list
         byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
       });
   }
@@ -415,7 +414,7 @@
   function updateTurnTimerLabels(room){
     const lists = document.querySelectorAll('.turnOrderList');
     const order = room.order || [];
-    const idx = room.currentIndex || 0;
+    theIdx = room.currentIndex || 0;
     const remaining = computeRemaining(room);
     const connected = room.connections ? Object.keys(room.connections) : [];
     lists.forEach(list=>{
@@ -423,9 +422,9 @@
       order.forEach((name,i)=>{
         const li = document.createElement('li');
         const isConnected = connected.includes(name);
-        li.textContent = (i===idx && remaining!=null) ? `${name} (${remaining}s)` : name;
+        li.textContent = (i===theIdx && remaining!=null) ? `${name} (${remaining}s)` : name;
         if(!isConnected){ li.classList.add('disconnected'); li.textContent += ' (Disconnected)'; }
-        if(i===idx) li.classList.add('current');
+        if(i===theIdx) li.classList.add('current');
         list.appendChild(li);
       });
     });
