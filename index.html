@@ -1,11 +1,12 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="upgrade-insecure-requests" http-equiv="Content-Security-Policy"/>
 <title>🎨 Telestrations Game 🎨</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&amp;display=swap" rel="stylesheet"/>
 <style>
   :root {
     --bg: #f5f7fa;
@@ -104,101 +105,91 @@
 </style>
 </head>
 <body>
-  <h1 onclick="resetToHome()">🎨 Telestrations Game 🎨</h1>
-  <div id="roomBanner">Room Code: <span id="bannerCode"></span></div>
-
-  <div class="container" id="homeScreen">
-    <h3>Enter a username:</h3>
-    <input type="text" id="usernameInput" placeholder="Your username" maxlength="25"><br><br>
-    <button onclick="createRoom()">Create Room</button>
-    <button onclick="joinRoomPrompt()">Join Room</button>
-    <div class="infoPanel">
-      <h4>Here's how the game works:</h4>
-      <ul>
-        <li>Host creates a room and picks the first word/phrase.</li>
-        <li>Turns alternate: draw (60s) → guess (30s).</li>
-        <li>Submit anytime; timer auto-submits when it ends.</li>
-        <li>See the full chain at the end!</li>
-      </ul>
-    </div>
-  </div>
-
-  <div class="container hidden" id="lobbyScreen">
-    <h2>Room Code: <span id="roomCodeDisplay"></span></h2>
-    <ul id="playerList"></ul>
-    <p class="muted" id="lobbyMsg"></p>
-    <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
-    <div class="infoPanel">
-      <h4>Here's how the game works:</h4>
-      <ul>
-        <li>Host starts once everyone joins (2–15 players).</li>
-        <li>Turns alternate: draw (60s) → guess (30s).</li>
-        <li>Submit anytime; timer auto-submits when it ends.</li>
-        <li>See the full chain at the end!</li>
-      </ul>
-    </div>
-    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
-  </div>
-
-  <div class="container hidden" id="wordSelectScreen">
-    <h3>Pick a Word or Phrase</h3>
-    <input type="text" id="customWord" placeholder="Enter custom word/phrase"><br><br>
-    <button onclick="suggestWord()">Suggest Word/Phrase</button>
-    <p id="suggestedWord" style="font-weight:700;color:var(--accent)"></p>
-    <button onclick="confirmWord()">Confirm & Start Round</button>
-    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
-  </div>
-
-  <div class="container hidden" id="drawingScreen">
-    <h3 id="drawPrompt"></h3>
-    <div id="drawControlsTop">
-      <button id="smallPen" onclick="setPenSize(2)">Small</button>
-      <button id="mediumPen" onclick="setPenSize(6)">Medium</button>
-      <button id="largePen" onclick="setPenSize(12)">Large</button>
-    </div>
-    <div id="drawControlsBottom" style="margin-top:8px;">
-      <button onclick="undo()">Undo</button>
-      <button onclick="clearCanvas()">Clear</button>
-      <span class="timer" id="drawTimer">60s</span>
-      <button onclick="submitDrawing(false)">Submit Drawing</button>
-    </div>
-    <canvas id="drawCanvas" width="720" height="460"></canvas>
-    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
-  </div>
-
-  <div class="container hidden" id="guessScreen">
-    <h3>Guess the drawing!</h3>
-    <input id="guessInput" type="text" placeholder="Type your guess here" />
-    <div style="margin-top:8px;">
-      <span class="timer" id="guessTimer">30s</span>
-      <button onclick="submitGuess()">Submit Guess</button>
-    </div>
-    <img id="guessImage" />
-    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
-  </div>
-
-  <div class="container hidden" id="waitScreen">
-    <div id="turnBanner"></div>
-    <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
-  </div>
-
-  <div class="container hidden" id="resultsScreen">
-    <h2 style="font-size:1.6em;color:var(--accent);">Results Summary</h2>
-    <div style="font-weight:700;color:var(--accent);font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
-    <div id="resultsList" style="margin-top:12px;"></div>
-    <div id="restartBox">
-      <p><b>Ready for another round?</b><br>
+<h1 onclick="resetToHome()">🎨 Telestrations Game 🎨</h1><div class="emojiFlow">🖌️ ➜ 💭 ➜ 🖌️ ➜ 💭 ➜ 🖌️ ➜ 💭</div>
+<div id="roomBanner">Room Code: <span id="bannerCode"></span></div>
+<div class="container" id="homeScreen">
+<h3>Enter a username:</h3>
+<input id="usernameInput" maxlength="25" placeholder="Your username" type="text"/><br/><br/>
+<button onclick="createRoom()">Create Room</button>
+<button onclick="joinRoomPrompt()">Join Room</button>
+<div class="infoPanel">
+<h4>Here's how the game works:</h4>
+<ul>
+<li>Host creates a room and picks the first word/phrase.</li>
+<li>Turns alternate: draw (60s) → guess (30s).</li>
+<li>Submit anytime; timer auto-submits when it ends.</li>
+<li>See the full chain at the end!</li>
+</ul>
+</div>
+</div>
+<div class="container hidden" id="lobbyScreen">
+<h2>Room Code: <span id="roomCodeDisplay"></span></h2>
+<ul id="playerList"></ul>
+<p class="muted" id="lobbyMsg"></p>
+<button class="hidden" id="startGameBtn" onclick="startGame()">Start Game</button>
+<div class="infoPanel">
+<h4>Here's how the game works:</h4>
+<ul>
+<li>Host starts once everyone joins (2–15 players).</li>
+<li>Turns alternate: draw (60s) → guess (30s).</li>
+<li>Submit anytime; timer auto-submits when it ends.</li>
+<li>See the full chain at the end!</li>
+</ul>
+</div>
+<div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
+</div>
+<div class="container hidden" id="wordSelectScreen">
+<h3>Pick a Word or Phrase</h3>
+<input id="customWord" placeholder="Enter custom word/phrase" type="text"/><br/><br/>
+<button onclick="suggestWord()">Suggest Word/Phrase</button>
+<p id="suggestedWord" style="font-weight:700;color:var(--accent)"></p>
+<button onclick="confirmWord()">Confirm &amp; Start Round</button>
+<div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
+</div>
+<div class="container hidden" id="drawingScreen">
+<h3 id="drawPrompt"></h3>
+<div id="drawControlsTop">
+<button id="smallPen" onclick="setPenSize(2)">Small</button>
+<button id="mediumPen" onclick="setPenSize(6)">Medium</button>
+<button id="largePen" onclick="setPenSize(12)">Large</button>
+</div>
+<div id="drawControlsBottom" style="margin-top:8px;">
+<button onclick="undo()">Undo</button>
+<button onclick="clearCanvas()">Clear</button>
+<span class="timer" id="drawTimer">60s</span>
+<button onclick="submitDrawing(false)">Submit Drawing</button>
+</div>
+<canvas height="460" id="drawCanvas" width="720"></canvas>
+<div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
+</div>
+<div class="container hidden" id="guessScreen">
+<h3>Guess the drawing!</h3>
+<input id="guessInput" placeholder="Type your guess here" type="text">
+<div style="margin-top:8px;">
+<span class="timer" id="guessTimer">30s</span>
+<button onclick="submitGuess()">Submit Guess</button>
+</div>
+<img id="guessImage"/>
+<div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
+</input></div>
+<div class="container hidden" id="waitScreen">
+<div id="turnBanner"></div>
+<div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
+</div>
+<div class="container hidden" id="resultsScreen">
+<h2 style="font-size:1.6em;color:var(--accent);">Results Summary</h2>
+<div style="font-weight:700;color:var(--accent);font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
+<div id="resultsList" style="margin-top:12px;"></div>
+<div id="restartBox">
+<p><b>Ready for another round?</b><br/>
       Restart with the same players and shuffle everyone (including the host).</p>
-      <button onclick="restartGame()">🔁 Restart Game</button>
-    </div>
-  </div>
-
-  <canvas id="confettiCanvas" class="hidden"></canvas>
-
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-
-  <script>
+<button onclick="restartGame()">🔁 Restart Game</button>
+</div>
+</div>
+<canvas class="hidden" id="confettiCanvas"></canvas>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script>
   const firebaseConfig = {
     apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
     authDomain: "telestrations-game-aa386.firebaseapp.com",
@@ -364,6 +355,9 @@
   }
 
   function suggestWord(){
+  const random = phrases[Math.floor(Math.random() * phrases.length)];
+  byId('customWord').value = random;
+}
     byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
   }
 
