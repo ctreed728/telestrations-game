@@ -70,7 +70,7 @@
     #drawControlsTop, #drawControlsBottom { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
   }
 
-  /* New: Localized turn banner style (replaces Waiting text) */
+  /* Localized solid-blue turn banner (replaces Waiting text) */
   #turnBanner {
     display: none;
     margin: 8px auto 10px;
@@ -83,7 +83,7 @@
     width: fit-content;
   }
 
-  /* New: Guess image style (match drawing border) */
+  /* Guess image border matches drawing canvas */
   #guessImage {
     max-width: 100%;
     border: 2px solid #90a4b8;
@@ -374,7 +374,7 @@
           showOnly('wordSelectScreen');
         } else {
           showOnly('waitScreen');
-          setTurnBanner(""); 
+          setTurnBanner("");
         }
         return;
       }
@@ -411,7 +411,7 @@
       if(room.state === 'results'){
         stopSharedTurnTicker();
         setTurnBanner("");
-        showResults(room);
+        showResults(room);   // <- ensures everyone lands on Results
         return;
       }
     });
@@ -455,7 +455,6 @@
     boxes.forEach(b => b.style.display = show ? 'block' : 'none');
   }
 
-  /* New: Turn banner helpers */
   function setPhaseBanner(phase, player){
     const el = byId('turnBanner');
     const icon = phase === 'drawing' ? '🖌️' : '💭';
@@ -564,6 +563,7 @@
   }
 
   function startDrawingPhase(room, idx){
+    showOnly('drawingScreen');
     clearCanvas();
     setPenSize(6);
     byId('drawPrompt').innerText = (idx===0)
@@ -612,6 +612,7 @@
   function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
 
   function startGuessingPhase(room, idx){
+    showOnly('guessScreen');
     const prev = room.gameData[idx-1];
     byId('guessImage').src = prev?.data || '';
     byId('guessInput').value = '';
@@ -677,6 +678,7 @@
   function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
 
   function showResults(room){
+    showOnly('resultsScreen');  // <-- critical: ensure everyone lands on Results
     byId('finalWord').innerText = room.word || '';
     const list = byId('resultsList');
     list.innerHTML = '';
