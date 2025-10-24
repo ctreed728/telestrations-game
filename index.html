@@ -32,6 +32,9 @@
   /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
 
+  /* Disconnected styling */
+  .disconnected { color:#9aa7b4; opacity:0.7; }
+
   /* Desktop tweaks */
   @media (min-width: 768px) {
     #usernameInput { width: 40%; }
@@ -212,6 +215,14 @@
   function setBanner(code){ byId('bannerCode').textContent = code; byId('roomBanner').style.display='block'; }
   function resetToHome(){ location.reload(); }
 
+  /* ---------- PRESENCE (NEW) ---------- */
+  function setupPresence(){
+    if(!roomCode || !username) return;
+    const connRef = db.ref(`rooms/${roomCode}/connections/${username}`);
+    connRef.set(true);
+    connRef.onDisconnect().remove();
+  }
+
   /* ---------- CREATE / JOIN ---------- */
   function createRoom(){
     username = byId('usernameInput').value.trim();
@@ -221,10 +232,13 @@
     setBanner(roomCode);
     db.ref('rooms/'+roomCode).set({
       host: username, players: [username], state:'lobby',
-      order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null
+      order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null,
+      connections: {} // NEW: presence map
+    }).then(()=>{
+      setupPresence();
+      subscribeRoom();
+      showLobby();
     });
-    subscribeRoom();
-    showLobby();
   }
 
   function joinRoomPrompt(){
@@ -244,6 +258,7 @@
       return roomRef.child('players').set(players);
     }).then(()=>{
       isHost = false;
+      setupPresence(); // NEW: mark connected
       subscribeRoom();
       showLobby();
     });
@@ -257,12 +272,20 @@
 
     db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
       const list = snap.val() || [];
-      listEl.innerHTML = list.map(p=>`<li>${p}</li>`).join("");
-      const canStart = isHost && list.length >= 2 && list.length <= 15;
-      byId('startGameBtn').classList.toggle('hidden', !canStart);
-      byId('lobbyMsg').innerText = isHost
-        ? "A minimum of 2 players are needed to start, and you can have up to 15 total."
-        : "Waiting for the host to start the game once everyone has joined and is ready.";
+      // NEW: read connections to mark disconnected
+      db.ref('rooms/'+roomCode+'/connections').once('value').then(csnap=>{
+        const connMap = csnap.val()||{};
+        const connected = Object.keys(connMap);
+        listEl.innerHTML = list.map(p=>{
+          const isConnected = connected.includes(p);
+          return `<li class="${isConnected?'' : 'disconnected'}">${p}${isConnected?'' : ' (Disconnected)'}</li>`;
+        }).join("");
+        const canStart = isHost && list.length >= 2 && list.length <= 15;
+        byId('startGameBtn').classList.toggle('hidden', !canStart);
+        byId('lobbyMsg').innerText = isHost
+          ? "A minimum of 2 players are needed to start, and you can have up to 15 total."
+          : "Waiting for the host to start the game once everyone has joined and is ready.";
+      });
     });
   }
 
@@ -355,11 +378,14 @@
     aconst = 0;
     const idx = room.currentIndex || 0;
     const remaining = computeRemaining(room);
+    const connected = room.connections ? Object.keys(room.connections) : [];
     lists.forEach(list=>{
       list.innerHTML = '';
       order.forEach((name,i)=>{
         const li = document.createElement('li');
+        const isConnected = connected.includes(name);
         li.textContent = (i===idx && remaining!=null) ? `${name} (${remaining}s)` : name;
+        if(!isConnected){ li.classList.add('disconnected'); li.textContent += ' (Disconnected)'; }
         if(i===idx) li.classList.add('current');
         list.appendChild(li);
       });
