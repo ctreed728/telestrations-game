@@ -26,22 +26,26 @@
   button:hover { background-color: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
   input { padding: 10px 12px; margin: 6px; width: 80%; max-width: 520px; border-radius: 10px; border: 2px solid var(--border); outline: none; }
   input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,123,255,.15); }
-  canvas { border: 2px solid var(--border-soft); border-radius: 12px; margin-top: 12px; background: #fff; touch-action: none; max-width: 100%; box-shadow: inset 0 0 6px rgba(0,0,0,0.08); }
+  canvas {
+    border: 2px solid #90a4b8;
+    border-radius: 12px;
+    background: #fff;
+    touch-action: none;
+    max-width: 100%;
+    margin-top: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
   .hidden { display: none; }
   ul { list-style: none; padding: 0; margin: 0; }
   .muted { color: var(--muted); font-size: 14px; }
-
   #roomBanner { display: none; background: #eef4fb; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px 0; font-weight: 600; color: var(--accent); }
-
   .turnOrderBox { display: none; max-width: 420px; margin: 16px auto 0; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; text-align: center; }
   .turnOrderBox h4 { margin: 0 0 8px; color: var(--accent); font-weight: 600; }
   .turnOrderList { padding: 0; margin: 0; text-align: center; }
   .turnOrderList li { list-style: none; padding: 4px 0; font-size: 15px; }
   .turnOrderList li.current::before { content: "→ "; color: var(--accent); font-weight: 700; }
   .activePen { background-color: #22c55e !important; }
-
   .disconnected { color: #9aa7b4; opacity: .7; }
-
   @media (min-width: 768px) {
     #usernameInput { width: 48%; }
     .infoPanel { width: 70%; margin: 0 auto; }
@@ -51,15 +55,12 @@
   .infoPanel h4 { margin: 0 0 8px; color: var(--accent); text-align: center; font-weight: 600; }
   .infoPanel ul { margin: 0; padding-left: 18px; }
   .infoPanel li { margin: 5px 0; list-style: disc; }
-
   #resultsList { text-align: center; }
   .resultStepHeader { text-align: center; font-weight: 700; color: var(--accent); margin: 22px 0 12px; font-size: 1.1em; }
   .resultDrawing { display: block; margin: 10px auto; border: 2px solid #90a4b8; border-radius: 12px; background-color: #fff; padding: 6px; max-width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
   .resultGuess { display: inline-block; background-color: #f0f6ff; border: 1px solid #b6d4ff; border-radius: 12px; padding: 10px 16px; text-align: center; color: var(--text); margin: 14px auto; max-width: 92%; word-wrap: break-word; }
   .resultDivider { margin: 30px 0; border-top: 1px dotted #c3d3e6; }
-
   #restartBox { margin-top: 20px; background: #f1f5f9; border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 520px; margin-left: auto; margin-right: auto; }
-
   @media (max-width: 767px) {
     #drawControlsTop, #drawControlsBottom { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
   }
@@ -547,7 +548,8 @@
     const start = room.turnStart || Date.now();
     const duration = 60;
     function tick(){
-      const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
+      const elapsed = Math.floor((Date.now() - start)/1000);
+      const remaining = Math.min(duration, Math.max(0, duration - elapsed));
       byId('drawTimer').innerText = remaining + 's';
       if(remaining <= 0){ submitDrawing(true); }
     }
@@ -594,7 +596,8 @@
     const start = room.turnStart || Date.now();
     const duration = 30;
     function tick(){
-      const remaining = Math.max(0, duration - Math.floor((Date.now() - start)/1000));
+      const elapsed = Math.floor((Date.now() - start)/1000);
+      const remaining = Math.min(duration, Math.max(0, duration - elapsed));
       byId('guessTimer').innerText = remaining + 's';
       if(remaining <= 0){
         byId('guessInput').value = '';
