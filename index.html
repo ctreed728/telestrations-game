@@ -15,9 +15,7 @@
   .hidden { display: none; }
   ul { list-style: none; padding: 0; }
   .muted { color:#517089; font-size:14px; }
-
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
-
   .turnOrderBox {
     display:none; max-width:600px; margin:15px auto 0 auto;
     background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left;
@@ -26,16 +24,13 @@
   .turnOrderList { padding:0; margin:0; }
   .turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
   .turnOrderList li.current::before { content:"→ "; color:#0b66b2; font-weight:700; }
-
   .viewer { color:#9aa9b8; }
   .activePen { background-color:#28a745 !important; }
-
   @media (min-width: 768px) {
     #usernameInput { width: 40%; }
     .infoPanel { width: 60%; margin: 0 auto; }
     #guessInput { width: 50%; }
   }
-
   .infoPanel {
     margin-top: 12px; padding:10px; border-radius:10px;
     background:#eaf5ff; border:1px solid #cfe6ff; color:#0b3f6b; text-align:left;
@@ -43,12 +38,10 @@
   .infoPanel h4 { margin:0 0 6px; color:#0b66b2; text-align:center; }
   .infoPanel ul { margin:0; padding-left:18px; }
   .infoPanel li { margin:4px 0; list-style: disc; }
-
   #restartBox {
     margin-top: 20px; background:#eaf5ff; border:1px solid #cfe6ff; border-radius:10px;
     padding:15px; max-width:500px; margin-left:auto; margin-right:auto;
   }
-
   @media (max-width: 767px) {
     #drawControlsTop, #drawControlsBottom { display:flex; justify-content:center; flex-wrap:wrap; gap:6px; }
   }
@@ -64,7 +57,6 @@
     <input type="text" id="usernameInput" placeholder="Your username" maxlength="25"><br><br>
     <button onclick="createRoom()">Create Room</button>
     <button onclick="joinRoomPrompt()">Join Room</button>
-
     <div class="infoPanel">
       <h4>Here's how the game works:</h4>
       <ul>
@@ -82,7 +74,6 @@
     <ul id="playerList"></ul>
     <p class="muted" id="lobbyMsg"></p>
     <button id="startGameBtn" class="hidden" onclick="startGame()">Start Game</button>
-
     <div class="infoPanel">
       <h4>Here's how the game works:</h4>
       <ul>
@@ -92,7 +83,6 @@
         <li>See the full chain at the end!</li>
       </ul>
     </div>
-
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
@@ -147,14 +137,13 @@
     <h2 style="font-size:1.6em;color:#0b66b2;">Results Summary</h2>
     <div style="font-weight:700;color:#0b66b2;font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
     <div id="resultsList" style="text-align:left;margin-top:12px;"></div>
-
     <div id="restartBox">
-      <p><b>Ready for another round?</b><br>
-      Restart with the same players and shuffle everyone (including the host).</p>
+      <p><b>Ready for another round?</b><br>Restart with the same players and shuffle everyone (including the host).</p>
       <button onclick="restartGame()">🔁 Restart Game</button>
     </div>
   </div>
 
+  <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
@@ -328,28 +317,21 @@
       const room = snapshot.val();
       if(!room){ alert("Room closed"); location.reload(); return; }
 
-      // Always update the Turn Order box safely
       renderTurnOrder(room);
 
-      // Only transition UI if these change:
       const idx = room.currentIndex || 0;
       const shouldTransition =
         (room.state !== prevState) ||
         (idx !== prevIndex) ||
         (room.turnStart !== prevTurnStart);
 
-      // Update shared header timers only when the above changes
       if(shouldTransition){
         stopSharedTurnTicker();
         startSharedTurnTicker(room);
+      } else {
+        return; // ignore presence/heartbeat changes
       }
 
-      // If no meaningful change, do nothing (prevents canvas/input resets)
-      if(!shouldTransition){
-        return;
-      }
-
-      // Transition screens
       if(room.state === 'lobby'){
         showLobby();
       } else if(room.state === 'wordSelect'){
@@ -372,45 +354,16 @@
     });
   }
 
+  // Presence now only affects lobby player list. It never changes turnStart/state mid-round.
   function handlePresenceChange(presence){
     db.ref('rooms/'+roomCode).once('value').then(s=>{
       const r = s.val(); if(!r) return;
-      const order = (r.order||[]).slice();
+      if(r.state !== 'lobby') return; // do not modify order/currentIndex during active game
       const viewers = r.viewers || {};
       const players = (r.players||[]).slice();
-      let changed = false;
-
-      for(let i=order.length-1;i>=0;i--){
-        const name = order[i];
-        const online = presence[name] && presence[name].online;
-        const isViewer = !!viewers[name];
-        if(!online && !isViewer){
-          order.splice(i,1);
-          changed = true;
-          if((r.currentIndex||0) >= i) r.currentIndex = Math.max(0, (r.currentIndex||0)-1);
-        }
-      }
-
-      if(r.state === 'lobby'){
-        const filteredPlayers = players.filter(p => (presence[p] && presence[p].online) || viewers[p]);
-        if(filteredPlayers.length !== players.length){
-          changed = true;
-          r.players = filteredPlayers;
-        }
-      }
-
-      if(changed){
-        const updates = {};
-        updates[`rooms/${roomCode}/order`] = order;
-        updates[`rooms/${roomCode}/currentIndex`] = r.currentIndex || 0;
-        if(order.length){
-          if(r.state === 'drawing' || r.state === 'guessing'){
-            updates[`rooms/${roomCode}/turnStart`] = Date.now();
-          }
-        } else {
-          updates[`rooms/${roomCode}/state`] = 'results';
-        }
-        db.ref().update(updates);
+      const filteredPlayers = players.filter(p => (presence[p] && presence[p].online) || viewers[p]);
+      if(filteredPlayers.length !== players.length){
+        db.ref('rooms/'+roomCode+'/players').set(filteredPlayers);
       }
     });
   }
@@ -627,7 +580,7 @@
         ['rooms/'+roomCode+'/state']: 'wordSelect',
         ['rooms/'+roomCode+'/turnStart']: null,
         ['rooms/'+roomCode+'/viewers']: newViewers,
-        ['rooms/'+roomCode+'/host']: newOrder[0]   // <<< ensure host aligns with first in list
+        ['rooms/'+roomCode+'/host']: newOrder[0]
       };
       return db.ref().update(u);
     });
