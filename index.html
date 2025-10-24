@@ -337,7 +337,7 @@
 
     db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
       const list = snap.val() || [];
-      db.ref('rooms/'+roomCode}/connections`).once('value').then(csnap=>{
+      db.ref(`rooms/${roomCode}/connections`).once('value').then(csnap=>{
         const connMap = csnap.val()||{};
         const connected = Object.keys(connMap);
         listEl.innerHTML = list.map(p=>{
@@ -832,3 +832,4 @@
   </script>
 </body>
 </html>
+
