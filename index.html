@@ -15,7 +15,6 @@
     --primary: #007bff;
     --primary-dark: #0065d4;
     --border: #cbd5e0;
-    --border-soft: #e2e8f0;
     --accent: #0b66b2;
   }
   * { box-sizing: border-box; }
@@ -215,7 +214,7 @@
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
 
-  // NEW: Track current turn key to decide when to reset vs. preserve on reconnect
+  // Track turn identity to reset only on new turns, not reconnects
   let lastTurnKey = null;
   function makeTurnKey(room){
     const idx = room?.currentIndex ?? 0;
@@ -335,7 +334,7 @@
     byId('roomCodeDisplay').innerText = roomCode;
     const listEl = byId('playerList');
 
-    db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
+    db.ref(`rooms/${roomCode}/players`).on('value', snap=>{
       const list = snap.val() || [];
       db.ref(`rooms/${roomCode}/connections`).once('value').then(csnap=>{
         const connMap = csnap.val()||{};
@@ -588,7 +587,7 @@
     }
   }
 
-  /* -------- TURN-KEYD PHASE START (reset only on new turn) -------- */
+  // Reset only on a new turn; preserve on reconnect
   function startDrawingPhase(room, idx){
     const turnKey = makeTurnKey(room);
     const isNewTurn = (turnKey !== lastTurnKey);
@@ -620,9 +619,8 @@
 
     startGuessTimer(room);
   }
-  /* --------------------------------------------------------------- */
 
-  /* ---------------- STRICT SHARED TIMERS (wait for turnStart) --------------- */
+  // Strict shared timers (wait for turnStart)
   function startDrawTimer(room){
     stopDrawTimer();
 
@@ -686,7 +684,55 @@
     startWhenReady();
   }
   function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
-  /* ------------------------------------------------------------------------- */
+
+  function submitDrawing(forced){
+    if(!forced && strokes.length===0){
+      alert("Please add at least one stroke before submitting.");
+      return;
+    }
+    stopDrawTimer();
+    const dataURL = canvas.toDataURL('image/png');
+    db.ref('rooms/'+roomCode).once('value').then(s=>{
+      const room = s.val();
+      const idx = room.currentIndex || 0;
+      const u = {};
+      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'draw', data:dataURL, player:username };
+      const next = idx + 1;
+      if(next >= (room.order||[]).length){
+        u['rooms/'+roomCode+'/state'] = 'results';
+      } else {
+        u['rooms/'+roomCode+'/currentIndex'] = next;
+        u['rooms/'+roomCode+'/state'] = 'guessing';
+        u['rooms/'+roomCode+'/turnStart'] = Date.now();
+      }
+      db.ref().update(u);
+    });
+  }
+
+  function submitGuess(){
+    const val = (byId('guessInput').value || '').trim();
+    if(!val){
+      alert("Please type a guess (or wait for the timer to auto-submit).");
+      return;
+    }
+    stopGuessTimer();
+    const g = val;
+    db.ref('rooms/'+roomCode).once('value').then(s=>{
+      const room = s.val();
+      const idx = room.currentIndex || 0;
+      const u = {};
+      u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:g, player:username };
+      const next = idx + 1;
+      if(next >= (room.order||[]).length){
+        u['rooms/'+roomCode+'/state'] = 'results';
+      } else {
+        u['rooms/'+roomCode+'/currentIndex'] = next;
+        u['rooms/'+roomCode+'/state'] = 'drawing';
+        u['rooms/'+roomCode+'/turnStart'] = Date.now();
+      }
+      db.ref().update(u);
+    });
+  }
 
   function showResults(room){
     showOnly('resultsScreen');
@@ -832,4 +878,3 @@
   </script>
 </body>
 </html>
-
