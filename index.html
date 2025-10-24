@@ -32,7 +32,7 @@
   /* Pen selection highlight */
   .activePen { background-color:#28a745 !important; }
 
-  /* Disconnected styling */
+  /* Disconnected style */
   .disconnected { color:#9aa7b4; opacity:0.7; }
 
   /* Desktop tweaks */
@@ -233,7 +233,7 @@
     db.ref('rooms/'+roomCode).set({
       host: username, players: [username], state:'lobby',
       order: null, currentIndex: 0, gameData:{}, word:null, turnStart:null,
-      connections: {} // NEW: presence map
+      connections: {} // presence map
     }).then(()=>{
       setupPresence();
       subscribeRoom();
@@ -258,7 +258,7 @@
       return roomRef.child('players').set(players);
     }).then(()=>{
       isHost = false;
-      setupPresence(); // NEW: mark connected
+      setupPresence(); // mark connected
       subscribeRoom();
       showLobby();
     });
@@ -272,7 +272,7 @@
 
     db.ref('rooms/'+roomCode+'/players').on('value', snap=>{
       const list = snap.val() || [];
-      // NEW: read connections to mark disconnected
+      // read connections to mark disconnected
       db.ref('rooms/'+roomCode+'/connections').once('value').then(csnap=>{
         const connMap = csnap.val()||{};
         const connected = Object.keys(connMap);
@@ -327,8 +327,14 @@
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
-        if(isHost) showOnly('wordSelectScreen');
-        else { byId('waitMsg').innerText = "Host is choosing a word…"; showOnly('waitScreen'); }
+        // UPDATED: the first player in the order chooses the word (persists across restarts)
+        const firstPlayer = room.order && room.order.length ? room.order[0] : room.host;
+        if(username === firstPlayer){
+          showOnly('wordSelectScreen');
+        } else {
+          byId('waitMsg').innerText = `${firstPlayer} is choosing a word…`;
+          showOnly('waitScreen');
+        }
         return;
       }
 
@@ -375,7 +381,6 @@
   function updateTurnTimerLabels(room){
     const lists = document.querySelectorAll('.turnOrderList');
     const order = room.order || [];
-    aconst = 0;
     const idx = room.currentIndex || 0;
     const remaining = computeRemaining(room);
     const connected = room.connections ? Object.keys(room.connections) : [];
