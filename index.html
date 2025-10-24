@@ -19,10 +19,19 @@
   /* Room code banner */
   #roomBanner { display:none; background:#d9ecff; border-top:1px solid #c4e1ff; border-bottom:1px solid #c4e1ff; padding:8px 0; font-weight:700; color:#0b66b2; }
 
-  /* Turn order box */
-  .turnOrderBox { display:none; max-width:600px; margin:15px auto 0 auto; background:#f7fbff; border:1px solid #c4e1ff; border-radius:10px; padding:10px; text-align:left; }
+  /* Turn order box (smaller & centered) */
+  .turnOrderBox {
+    display:none;
+    max-width: 400px;      /* smaller than before */
+    margin: 15px auto;     /* center horizontally */
+    background:#f7fbff;
+    border:1px solid #c4e1ff;
+    border-radius:10px;
+    padding:8px 10px;
+    text-align:center;     /* center content */
+  }
   .turnOrderBox h4 { margin:0 0 6px; color:#0b66b2; }
-  .turnOrderList { padding:0; margin:0; }
+  .turnOrderList { padding:0; margin:0; text-align:center; }
   .turnOrderList li { list-style:none; padding:3px 0; font-size:15px; }
   .turnOrderList li.current::before { content:"→ "; color:#0b66b2; font-weight:700; }
 
@@ -48,7 +57,40 @@
   .infoPanel ul { margin:0; padding-left:18px; }
   .infoPanel li { margin:4px 0; list-style: disc; }
 
-  /* Results restart box */
+  /* ---------------- Results visual polish ---------------- */
+  .resultStepHeader {
+    text-align: center;
+    font-weight: bold;
+    color: #0b66b2;
+    margin: 20px 0 10px 0;    /* spacing above & below header */
+    font-size: 1.1em;
+  }
+  .resultDrawing {
+    display: block;
+    margin: 10px auto;
+    border: 2px solid #004b91; /* darker border to stand out */
+    border-radius: 10px;
+    background-color: #f9fbff;
+    padding: 5px;
+    max-width: 100%;
+  }
+  .resultGuess {
+    display: inline-block;
+    background-color: #f0f6ff;
+    border: 1px solid #b6d4ff;
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-align: center;
+    color: #123;
+    margin: 12px auto;
+  }
+  .resultDivider {
+    margin: 28px 0;          /* extra spacing between steps */
+    border-top: 1px dotted #a3c9f7;
+  }
+  /* ------------------------------------------------------ */
+
+  /* Restart box */
   #restartBox {
     margin-top: 20px; background:#eaf5ff; border:1px solid #cfe6ff; border-radius:10px;
     padding:15px; max-width:500px; margin-left:auto; margin-right:auto;
@@ -277,7 +319,7 @@
       const players = r.players || [];
       if(!players.includes(username)) players.push(username);
 
-      // 🔹 FIX: Wait for .set() to finish before continuing (prevents “stuck outside lobby” + gray flicker)
+      // 🔹 FIX: Wait for .set() to finish before continuing (prevents join race + false disconnect flicker)
       return roomRef.child('players').set(players).then(() => {
         isHost = false;
         setupPresence();   // register connection AFTER player list is saved
@@ -414,7 +456,7 @@
   function updateTurnTimerLabels(room){
     const lists = document.querySelectorAll('.turnOrderList');
     const order = room.order || [];
-    theIdx = room.currentIndex || 0;
+    const idx = room.currentIndex || 0;
     const remaining = computeRemaining(room);
     const connected = room.connections ? Object.keys(room.connections) : [];
     lists.forEach(list=>{
@@ -422,9 +464,9 @@
       order.forEach((name,i)=>{
         const li = document.createElement('li');
         const isConnected = connected.includes(name);
-        li.textContent = (i===theIdx && remaining!=null) ? `${name} (${remaining}s)` : name;
+        li.textContent = (i===idx && remaining!=null) ? `${name} (${remaining}s)` : name;
         if(!isConnected){ li.classList.add('disconnected'); li.textContent += ' (Disconnected)'; }
-        if(i===theIdx) li.classList.add('current');
+        if(i===idx) li.classList.add('current');
         list.appendChild(li);
       });
     });
@@ -663,29 +705,36 @@
     const list = byId('resultsList');
     list.innerHTML = '';
     const steps = Object.keys(room.gameData||{}).map(n=>parseInt(n,10)).sort((a,b)=>a-b);
+
     steps.forEach(step=>{
       const e = room.gameData[step];
       const block = document.createElement('div');
-      block.style.paddingTop = '12px';
-      block.style.margin = '14px 0 22px 0';
-      block.style.borderTop = '1px dotted #c4d9ef';
+
+      // Centered, bold header (Step N — player (type))
       const header = document.createElement('div');
-      header.innerHTML = `<b>Step ${step+1} — ${e.player} (${e.type})</b>`;
+      header.classList.add('resultStepHeader');
+      header.innerText = `Step ${step+1} — ${e.player} (${e.type})`;
       block.appendChild(header);
+
       if(e.type === 'draw'){
+        // Centered image with darker border + padding
         const img = document.createElement('img');
         img.src = e.data;
-        img.style.maxWidth='100%';
-        img.style.border='1px solid #ddd';
-        img.style.borderRadius='8px';
-        img.style.marginTop='8px';
+        img.classList.add('resultDrawing');
         block.appendChild(img);
       } else {
-        const p = document.createElement('div');
-        p.textContent = e.data;
-        p.style.marginTop='10px';
-        block.appendChild(p);
+        // Centered, boxed guess
+        const guessBox = document.createElement('div');
+        guessBox.classList.add('resultGuess');
+        guessBox.innerText = e.data;
+        block.appendChild(guessBox);
       }
+
+      // Extra-spaced dotted divider between steps
+      const divider = document.createElement('div');
+      divider.classList.add('resultDivider');
+      block.appendChild(divider);
+
       list.appendChild(block);
     });
   }
