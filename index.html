@@ -39,6 +39,7 @@
   ul { list-style: none; padding: 0; margin: 0; }
   .muted { color: var(--muted); font-size: 14px; }
   #roomBanner { display: none; background: #eef4fb; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px 0; font-weight: 600; color: var(--accent); }
+
   .turnOrderBox { display: none; max-width: 420px; margin: 16px auto 0; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; text-align: center; }
   .turnOrderBox h4 { margin: 0 0 8px; color: var(--accent); font-weight: 600; }
   .turnOrderList { padding: 0; margin: 0; text-align: center; }
@@ -46,6 +47,7 @@
   .turnOrderList li.current::before { content: "→ "; color: var(--accent); font-weight: 700; }
   .activePen { background-color: #22c55e !important; }
   .disconnected { color: #9aa7b4; opacity: .7; }
+
   @media (min-width: 768px) {
     #usernameInput { width: 48%; }
     .infoPanel { width: 70%; margin: 0 auto; }
@@ -55,14 +57,40 @@
   .infoPanel h4 { margin: 0 0 8px; color: var(--accent); text-align: center; font-weight: 600; }
   .infoPanel ul { margin: 0; padding-left: 18px; }
   .infoPanel li { margin: 5px 0; list-style: disc; }
+
   #resultsList { text-align: center; }
   .resultStepHeader { text-align: center; font-weight: 700; color: var(--accent); margin: 22px 0 12px; font-size: 1.1em; }
   .resultDrawing { display: block; margin: 10px auto; border: 2px solid #90a4b8; border-radius: 12px; background-color: #fff; padding: 6px; max-width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
   .resultGuess { display: inline-block; background-color: #f0f6ff; border: 1px solid #b6d4ff; border-radius: 12px; padding: 10px 16px; text-align: center; color: var(--text); margin: 14px auto; max-width: 92%; word-wrap: break-word; }
   .resultDivider { margin: 30px 0; border-top: 1px dotted #c3d3e6; }
+
   #restartBox { margin-top: 20px; background: #f1f5f9; border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 520px; margin-left: auto; margin-right: auto; }
+
   @media (max-width: 767px) {
     #drawControlsTop, #drawControlsBottom { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  }
+
+  /* New: Localized turn banner style (replaces Waiting text) */
+  #turnBanner {
+    display: none;
+    margin: 8px auto 10px;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    width: fit-content;
+  }
+
+  /* New: Guess image style (match drawing border) */
+  #guessImage {
+    max-width: 100%;
+    border: 2px solid #90a4b8;
+    border-radius: 12px;
+    margin-top: 10px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   }
 </style>
 </head>
@@ -136,12 +164,12 @@
       <span class="timer" id="guessTimer">30s</span>
       <button onclick="submitGuess()">Submit Guess</button>
     </div>
-    <img id="guessImage" style="max-width:100%;border:1px solid var(--border-soft);border-radius:10px;margin-top:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);" />
+    <img id="guessImage" />
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
   <div class="container hidden" id="waitScreen">
-    <p id="waitMsg">Waiting…</p>
+    <div id="turnBanner"></div>
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
   </div>
 
@@ -345,8 +373,8 @@
         if(username === firstPlayer){
           showOnly('wordSelectScreen');
         } else {
-          byId('waitMsg').innerText = `${firstPlayer} is choosing a word…`;
           showOnly('waitScreen');
+          setTurnBanner(""); 
         }
         return;
       }
@@ -357,19 +385,32 @@
       const myTurn = (current === username);
 
       if(room.state === 'drawing'){
-        if(myTurn) startDrawingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${current} is drawing…`; showOnly('waitScreen'); }
+        if(myTurn) {
+          showOnly('drawingScreen');
+          startDrawingPhase(room, idx);
+          setTurnBanner("");
+        } else {
+          showOnly('waitScreen');
+          setPhaseBanner('drawing', current);
+        }
         return;
       }
 
       if(room.state === 'guessing'){
-        if(myTurn) startGuessingPhase(room, idx);
-        else { byId('waitMsg').innerText = `${current} is guessing…`; showOnly('waitScreen'); }
+        if(myTurn) {
+          showOnly('guessScreen');
+          startGuessingPhase(room, idx);
+          setTurnBanner("");
+        } else {
+          showOnly('waitScreen');
+          setPhaseBanner('guessing', current);
+        }
         return;
       }
 
       if(room.state === 'results'){
         stopSharedTurnTicker();
+        setTurnBanner("");
         showResults(room);
         return;
       }
@@ -412,6 +453,19 @@
     const boxes = document.querySelectorAll('.turnOrderBox');
     const show = (room.order || []).length > 0 && room.state !== 'lobby';
     boxes.forEach(b => b.style.display = show ? 'block' : 'none');
+  }
+
+  /* New: Turn banner helpers */
+  function setPhaseBanner(phase, player){
+    const el = byId('turnBanner');
+    const icon = phase === 'drawing' ? '🖌️' : '💭';
+    el.textContent = `${icon} Now ${phase === 'drawing' ? 'Drawing' : 'Guessing'}: ${player}`;
+    el.style.display = 'inline-block';
+  }
+  function setTurnBanner(text){
+    const el = byId('turnBanner');
+    if(!text){ el.style.display = 'none'; el.textContent = ""; return; }
+    el.textContent = text; el.style.display = 'inline-block';
   }
 
   const canvas = byId('drawCanvas');
@@ -510,7 +564,6 @@
   }
 
   function startDrawingPhase(room, idx){
-    showOnly('drawingScreen');
     clearCanvas();
     setPenSize(6);
     byId('drawPrompt').innerText = (idx===0)
@@ -559,7 +612,6 @@
   function stopDrawTimer(){ if(drawInterval){ clearInterval(drawInterval); drawInterval=null; byId('drawTimer').innerText='60s'; } }
 
   function startGuessingPhase(room, idx){
-    showOnly('guessScreen');
     const prev = room.gameData[idx-1];
     byId('guessImage').src = prev?.data || '';
     byId('guessInput').value = '';
@@ -625,7 +677,6 @@
   function stopGuessTimer(){ if(guessInterval){ clearInterval(guessInterval); guessInterval=null; byId('guessTimer').innerText='30s'; } }
 
   function showResults(room){
-    showOnly('resultsScreen');
     byId('finalWord').innerText = room.word || '';
     const list = byId('resultsList');
     list.innerHTML = '';
