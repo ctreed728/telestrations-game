@@ -656,7 +656,9 @@
             const room = s.val();
             const idx = room.currentIndex || 0;
             const u = {};
-            u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
+            const _currentVal = (byId('guessInput') && byId('guessInput').value || '').trim();
+const _guessData = _currentVal ? _currentVal : 'No guess';
+u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:_guessData, player:username };
             const next = idx + 1;
             if(next >= (room.order||[]).length){
               u['rooms/'+roomCode+'/state'] = 'results';
@@ -887,6 +889,27 @@ submitGuess = function(){
   }
   originalSubmitGuess();
 };
+
+/* --- Guard: require a word before starting round --- */
+if (typeof confirmWord === 'function') {
+  const __orig_confirmWord = confirmWord;
+  confirmWord = function(){
+    const c = (byId('customWord') && byId('customWord').value || '').trim();
+    if (!c) { alert('Please enter a word or phrase first.'); return; }
+    // If the original confirmWord already reads the input itself, just call it:
+    return __orig_confirmWord();
+  };
+}
+
+/* --- Guard: prevent manual blank submit, but keep timer running --- */
+if (typeof submitGuess === 'function') {
+  const __orig_submitGuess_blank_guard = submitGuess;
+  submitGuess = function(){
+    const val = (byId('guessInput') && byId('guessInput').value || '').trim();
+    if (!val) { alert('Please enter a guess or wait for the timer to end.'); return; }
+    return __orig_submitGuess_blank_guard();
+  };
+}
 </script>
 </body>
 </html>
