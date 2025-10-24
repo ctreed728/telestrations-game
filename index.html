@@ -58,6 +58,7 @@
   .infoPanel li { margin:4px 0; list-style: disc; }
 
   /* ---------------- Results visual polish ---------------- */
+  #resultsList { text-align: center; } /* NEW: ensure children (including guess boxes) can center */
   .resultStepHeader {
     text-align: center;
     font-weight: bold;
@@ -75,7 +76,7 @@
     max-width: 100%;
   }
   .resultGuess {
-    display: inline-block;
+    display: inline-block;    /* centers via parent text-align:center */
     background-color: #f0f6ff;
     border: 1px solid #b6d4ff;
     border-radius: 10px;
@@ -83,6 +84,8 @@
     text-align: center;
     color: #123;
     margin: 12px auto;
+    max-width: 90%;
+    word-wrap: break-word;
   }
   .resultDivider {
     margin: 28px 0;          /* extra spacing between steps */
@@ -148,7 +151,7 @@
   <div class="container hidden" id="wordSelectScreen">
     <h3>Pick a Word or Phrase</h3>
     <input type="text" id="customWord" placeholder="Enter custom word/phrase"><br><br>
-    <button onclick="suggestWord()">Suggest Word</button>
+    <button onclick="suggestWord()">Suggest Word/Phrase</button> <!-- NEW: button text -->
     <p id="suggestedWord" style="font-weight:700;color:#0b66b2"></p>
     <button onclick="confirmWord()">Confirm & Start Round</button>
     <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
@@ -194,7 +197,7 @@
   <div class="container hidden" id="resultsScreen">
     <h2 style="font-size:1.6em;color:#0b66b2;">Results Summary</h2>
     <div style="font-weight:700;color:#0b66b2;font-size:1.25em;">Original Word/Phrase: <span id="finalWord"></span></div>
-    <div id="resultsList" style="text-align:left;margin-top:12px;"></div>
+    <div id="resultsList" style="margin-top:12px;"></div> <!-- NEW: removed text-align:left -->
 
     <div id="restartBox">
       <p><b>Ready for another round?</b><br>
@@ -225,22 +228,36 @@
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
 
-  /* ---------- WORD LIST (static fallback) ---------- */
+  /* ---------- WORD LIST (static only; odd & funny 100+) ---------- */
   const phrases = [
-    "Barking up the wrong tree","Surfing grandma","Invisible dog","Couch potato","Dancing with wolves",
-    "Robot yoga","Haunted smartphone","Fish out of water","Jumping the gun","Raining cats and dogs",
-    "Time traveler","Elephant on a skateboard","Flying carpet commute","Secret admirer note",
-    "Backwards clock","Talking mailbox","Walking on eggshells","Tickled pink","Elephant in the room",
-    "Rocket-powered shoes","Bulls in a china shop","Two peas in a pod","All ears","Cold feet",
-    "Counting sheep","Cat got your tongue","Piece of cake","Hold your horses","Spill the beans",
-    "Pigs might fly","Monkey business","Let the cat out of the bag","Crocodile tears","Once in a blue moon",
-    "Through the grapevine","Burning the midnight oil","Under the weather","Kick the bucket",
-    "Hit the hay","Break a leg","Bite the bullet","When pigs fly","Bend over backwards","Go the extra mile",
-    "Skeleton in the closet","Ballpark figure","Birds of a feather","A blessing in disguise",
-    "Cut to the chase","The last straw","Take with a grain of salt","On thin ice","Go with the flow",
-    "Caught red-handed","Out of the blue","Head in the clouds","The early bird","No stone unturned",
-    "Out of left field","Throw in the towel","Up in the air","Silver lining","Burning bridges",
-    "In hot water","By the skin of your teeth"
+    "Penguin on vacation","Cactus karaoke","Wi-Fi ghost","Banana in a tuxedo","Invisible umbrella",
+    "Robot doing yoga","Haunted toaster","Moonwalking giraffe","Submarine in the desert","Laptop campfire",
+    "Time-traveling pizza","Squirrel traffic cop","Octopus knitting sweater","Backwards bicycle","Sneezing volcano",
+    "Skateboarding elephant","Cat running a lemonade stand","Shark in a hot-air balloon","Mailbox with sunglasses","Fish walking a dog",
+    "Flying carpet commute","Cow on a trampoline","Dragon roasting marshmallows","Dinosaur at the dentist","Balloons lifting a houseplant",
+    "Astronaut watering plants","Camel on ice skates","Turtle with rocket boots","Unicorn stuck in traffic","Hamster paparazzi",
+    "Parachuting piano","Waffle snowstorm","Hot dog reading a newspaper","Marshmallow boxing match","Bowling with coconuts",
+    "Bumblebee barista","Snail delivering pizza","Kangaroo grocery shopping","Helicopter made of feathers","Toothbrush orchestra",
+    "T-Rex using chopsticks","Pirate penguin","Octopus high-five line","Jellyfish lamp","Popcorn thunderstorm","Rollercoaster in a library",
+    "Vampire sunscreen commercial","Mermaid on a bicycle","Yeti doing laundry","Sloth DJ","Gnome lifeguard","Cloud in a jar",
+    "Couch potato literally","Dancing traffic cones","Robot babysitter","Witch on a scooter","Wizard in a hoodie","Sasquatch selfie",
+    "Alien at the DMV","Zebra barcode","Pigeon mail service","Cupcake construction site","Knight walking a goldfish",
+    "Koala astronaut","Llama hair salon","Narwhal birthday party","Cheese moon landing","Ice cream in a sauna",
+    "Ghost stuck in revolving door","Spider web hammock","Mismatched socks parade","Accordion snake","Broomstick car wash",
+    "Bubble wrap runway","Cereal bowl swimming pool","Tornado in a teacup","Fire-breathing squirrel","Gorilla tea party",
+    "Compass that only points up","Map that’s scribbles","Invisible dog leash","Mailbox eating letters","Mirror with stage fright",
+    "Popsicle sunset","Penguin lifeguard","Cactus snowman","Skunk perfume tester","Toaster spaceship","Cloud mowing the lawn",
+    "Dolphin on a pogo stick","Watering can rainstorm","Pizza delivery by drone dragon","Kite surfing in a bathtub","Suitcase with feelings",
+    "Coffee mug telescope","Microwave time machine","Sneakers made of clouds","Bicycle with square wheels","Trombone tornado",
+    "Robot choir","Sandcastle skyscraper","Glasses on a statue blinking","Train made of spaghetti","Raincoat for a cat",
+    "Bubblegum galaxy","Hedgehog barbershop","Avocado karate","Haunted sock","Candle doing taxes",
+    "Pumpkin scuba diver","Mailbox karaoke","Ladder to the moon","Coconut laptop","Cranes lifting a rainbow",
+    "Thunderstorm with confetti","Paper airplane airline","Donut eclipse","Cucumber cowboy","Piano under the sea",
+    "Taco telescope","Penguin orchestra","Squirrel yoga class","Skateboard made of books","Basketball on the moon",
+    "Koala hot air balloon","Ice cube in the desert","Raccoon pizza chef","Origami dragonfly","Marshmallow camp counselor",
+    "Potato astronaut","Dragon reading bedtime stories","Rubber duck safari","Waffle iron orchestra","Penguin snowplow",
+    "Caterpillar limousine","Spaghetti jump rope","Snowman with a sunburn","Tooth fairy stuck in traffic","Cup of tea surfing",
+    "Elevator to nowhere","Moon cheese factory","Robot gardening in space","Umbrella playing poker","Pillow fight tournament"
   ];
 
   /* ---------- UTIL ---------- */
@@ -366,17 +383,9 @@
   }
 
   /* ---------- WORD PICK ---------- */
-  // NEW: Live short-phrase fetch with fallback to local static list
+  // NEW: Static-only suggestion (API removed)
   function suggestWord(){
-    fetch('https://api.quotable.io/random?maxLength=40')
-      .then(res => res.ok ? res.json() : Promise.reject(new Error('Bad status')))
-      .then(data => {
-        const phrase = (data && data.content) ? data.content : phrases[Math.floor(Math.random()*phrases.length)];
-        byId('suggestedWord').innerText = phrase;
-      })
-      .catch(() => {
-        byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
-      });
+    byId('suggestedWord').innerText = phrases[Math.floor(Math.random()*phrases.length)];
   }
 
   function confirmWord(){
@@ -723,7 +732,7 @@
         img.classList.add('resultDrawing');
         block.appendChild(img);
       } else {
-        // Centered, boxed guess
+        // Centered, boxed guess (parent #resultsList now centers children)
         const guessBox = document.createElement('div');
         guessBox.classList.add('resultGuess');
         guessBox.innerText = e.data;
