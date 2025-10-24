@@ -426,7 +426,7 @@
         return;
       }
 
-      if(room.state === 'results'){
+      if (room.state === 'results' && !hasShownResultsConfetti) { hasShownResultsConfetti = true;
         stopSharedTurnTicker();
         setTurnBanner("");
         showResults(room);
