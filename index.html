@@ -224,7 +224,7 @@ async function renderCommunityDoodleInResults() {
     if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
 
     // Fetch strokes once
-    const snap = const ridSnap = await db.ref(`rooms/${roomCode}/roundId`).once('value');
+    const ridSnap = await db.ref(`rooms/${roomCode}/roundId`).once('value');
     const rid = ridSnap.val() || 0;
     const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/round_${rid}/strokes`).once('value');
     const data = snap.val() || {};
