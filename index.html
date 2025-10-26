@@ -886,15 +886,7 @@ firebase.database().ref(".info/serverTimeOffset").on("value", snap => {
 function getServerNow() { return Date.now() + serverOffset; }
 
 
-/* ---- Partial Guess Auto-Submit ---- */
-const originalSubmitGuess = submitGuess;
-submitGuess = function(){
-  const val = (byId('guessInput').value || '').trim();
-  if (!val) {
-    byId('guessInput').value = 'No guess';
-  }
-  originalSubmitGuess();
-};
+
 </script>
 </body>
 </html>
