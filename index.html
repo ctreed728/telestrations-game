@@ -594,8 +594,6 @@ let __lastCelebrationKey = null;
         strokes = [];
         if (typeof clearCanvas === 'function') clearCanvas();
         lastTurnKey = null;
-        // Clear Community Doodle locally at the start of a new round
-        try { clearCommunityDoodleLocal(); setSharedCanvasLocked(false); } catch(_) {}
 
         const firstPlayer = room.order && room.order.length ? room.order[0] : room.host;
         if(username === firstPlayer){
@@ -866,7 +864,6 @@ let __lastCelebrationKey = null;
             const room = s.val();
             const idx = room.currentIndex || 0;
             const u = {};
-        u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = null;
             u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
             const next = idx + 1;
             if(next >= (room.order||[]).length){
@@ -1003,9 +1000,9 @@ let __lastCelebrationKey = null;
         ['rooms/'+roomCode+'/gameData']: {},
         ['rooms/'+roomCode+'/word']: null,
         ['rooms/'+roomCode+'/state']: 'wordSelect',
-        ['rooms/'+roomCode+'/turnStart']: null,
-      
-        };
+        ['rooms/'+roomCode+'/turnStart']: null
+      };
+        u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = null;
       return db.ref().update(u);
     });
   }
@@ -1265,22 +1262,6 @@ function setSharedCanvasLocked(isLocked){
   el.style.opacity = isLocked ? 0.6 : 1.0;
   el.style.pointerEvents = isLocked ? 'none' : 'auto';
 }
-
-// ---- Helper: Clear Community Doodle locally (canvas + results block) ----
-function clearCommunityDoodleLocal(){
-  try {
-    const block = document.getElementById('communityDoodleResultsBlock');
-    if (block && block.parentElement) block.parentElement.removeChild(block);
-  } catch(_) {}
-  try {
-    if (sharedCtx && sharedCanvas) {
-      sharedCtx.clearRect(0,0,sharedCanvas.width,sharedCanvas.height);
-      sharedCtx.fillStyle = "#fff";
-      sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
-    }
-  } catch(_) {}
-}
-
 // =================== End Community Doodle ===================
 
 /* ---- Timer Sync Fix ---- */
