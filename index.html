@@ -205,6 +205,8 @@
 
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
+// Prevent duplicate celebration triggers per results round
+let __lastCelebrationKey = null;
 
   // Track turn identity to reset only on new turns, not reconnects
   let lastTurnKey = null;
@@ -361,6 +363,9 @@
 }
 
   function confirmWord(){
+      { const __cv = (byId('customWord') && byId('customWord').value || '').trim();
+        if(!__cv){ alert("Please enter a word or phrase before starting."); return; } }
+
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
     if(!w) return alert("Pick or enter a word/phrase first");
@@ -392,7 +397,7 @@
           showOnly('wordSelectScreen');
         } else {
           showOnly('waitScreen');
-          setTurnBanner("");
+          setTurnBanner("⏳ Waiting for the host to pick a word or phrase. The game will start once the host confirms.");
         }
         return;
       }
@@ -703,6 +708,9 @@
   }
 
   function submitGuess(){
+  { const __gv = (byId('guessInput') && byId('guessInput').value || '').trim();
+    if(!__gv){ alert("Please type a guess (or wait for the timer to auto-submit)."); return; } }
+
     const val = (byId('guessInput').value || '').trim();
     if(!val){
       alert("Please type a guess (or wait for the timer to auto-submit).");
@@ -763,7 +771,7 @@
     });
 
     // Confetti burst (classic party colors) centered on screen for ~2s
-    startConfetti(2000);
+    (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ startConfetti(2000); __lastCelebrationKey = key; } })();
   }
 
   function restartGame(){
