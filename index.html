@@ -1005,7 +1005,8 @@ let __lastCelebrationKey = null;
         ['rooms/'+roomCode+'/word']: null,
         ['rooms/'+roomCode+'/state']: 'wordSelect',
         ['rooms/'+roomCode+'/turnStart']: null
-      };
+      }
+      u['rooms/'+roomCode+'/roundId'] = ((room && room.roundId) ? (room.roundId + 1) : 1);;
       return db.ref().update(u);
     });
   }
