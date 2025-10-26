@@ -215,23 +215,21 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
 // ---- Community Doodle: render composite on Results (under Restart Game) ----
 
-
-// Build the Community Doodle image once when entering Results
 async function renderCommunityDoodleInResults() {
   try {
     const resultsScreen = document.getElementById('resultsScreen');
     if (!resultsScreen) return;
 
-    // Remove any previous block to avoid stale image
-    resultsScreen.querySelectorAll('#communityDoodleResultsBlock').forEach(el => el.remove());
+    // Avoid duplicates if already added
+    if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
 
-    // Fetch latest strokes
+    // Fetch strokes once
     const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
     if (!keys.length) return;
 
-    // Composite image
+    // Build composite image from strokes
     const off = document.createElement('canvas'); off.width = 720; off.height = 460;
     const octx = off.getContext('2d');
     octx.fillStyle = "#fff"; octx.fillRect(0,0,off.width,off.height);
@@ -243,7 +241,7 @@ async function renderCommunityDoodleInResults() {
       octx.stroke();
     });
 
-    // Build block
+    // Create block UI
     const block = document.createElement('div');
     block.id = 'communityDoodleResultsBlock';
     block.style.marginTop = '12px';
@@ -255,11 +253,11 @@ async function renderCommunityDoodleInResults() {
     block.appendChild(hdr);
 
     const img = document.createElement('img');
-    img.src = off.toDataURL('image/png'); // new data URL each render
+    img.src = off.toDataURL('image/png');
     img.alt = 'Community Doodle';
     img.classList.add('resultDrawing');
     img.style.userSelect = 'none';
-    img.style.pointerEvents = 'none'; // view-only on results
+    img.style.pointerEvents = 'none'; // strictly non-editable
     block.appendChild(img);
 
     const divider = document.createElement('div');
@@ -267,13 +265,15 @@ async function renderCommunityDoodleInResults() {
     divider.style.marginTop = '8px';
     block.appendChild(divider);
 
-    // Place block after Restart panel/button container
+    // Helper: find the best container below "Restart" to insert after
     function findRestartAnchor() {
-      const root = resultsScreen;
-      const candidates = Array.from(root.querySelectorAll('button, input[type="button"], a, div, span'))
+      // find restart button by text
+      const btns = Array.from(resultsScreen.querySelectorAll('button, input[type="button"], a, div, span'))
         .filter(n => /restart/i.test(n.textContent || '') || /restart/i.test(n.value || ''));
-      if (!candidates.length) return null;
-      const btn = candidates[0];
+      if (!btns.length) return null;
+      const btn = btns[0];
+
+      // climb to a likely panel/canvas container
       let node = btn;
       const MAX_STEPS = 6;
       for (let i=0; i<MAX_STEPS && node; i++) {
@@ -281,22 +281,39 @@ async function renderCommunityDoodleInResults() {
         if (!node) break;
         const cls = (node.className || '').toString();
         const tag = (node.tagName || '').toLowerCase();
-        if (/panel|card|results|footer|actions|controls|container|canvas|box|section/i.test(cls) || tag === 'canvas') {
+        if (
+          /panel|card|results|footer|actions|controls|container|canvas|box|section/i.test(cls) ||
+          tag === 'canvas'
+        ) {
           return node;
         }
       }
+      // fallback: use the button's immediate parent
       return btn.parentElement || btn;
     }
 
-    const anchor = findRestartAnchor();
-    if (anchor && anchor.parentElement) {
-      anchor.insertAdjacentElement('afterend', block);
-    } else {
-      resultsScreen.appendChild(block);
+    // Try immediate placement; if results markup is still building, retry a few times
+    function placeBlock() {
+      const anchor = findRestartAnchor();
+      if (anchor && anchor.parentElement) {
+        anchor.insertAdjacentElement('afterend', block);
+        try { setSharedCanvasLocked(true); } catch(_) {}
+        return true;
+      }
+      return false;
     }
 
-    try { setSharedCanvasLocked(true); } catch(_) {}
-
+    if (!placeBlock()) {
+      // Retry a few times to handle async results rendering
+      let tries = 0;
+      const maxTries = 8;
+      const intId = setInterval(() => {
+        if (resultsScreen.querySelector('#communityDoodleResultsBlock')) { clearInterval(intId); return; }
+        if (placeBlock()) { clearInterval(intId); return; }
+        tries++;
+        if (tries >= maxTries) clearInterval(intId);
+      }, 300);
+    }
   } catch (e) {
     console.warn('renderCommunityDoodleInResults error:', e);
   }
@@ -567,19 +584,18 @@ let __lastCelebrationKey = null;
       renderTurnOrder(room);
       startSharedTurnTicker(room);
 
-      maybeRenderResultsDoodle(room);
-      updateDoodleLock(room);
       attachSharedListener(room);
       ensurePlayerColors(room);
       if (room && room.state === 'results') { renderCommunityDoodleInResults(); }
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
-        try{ setSharedCanvasLocked(false); }catch(_){ }
         // New round setup: clear local buffers so nothing carries over
         strokes = [];
         if (typeof clearCanvas === 'function') clearCanvas();
         lastTurnKey = null;
+        // Clear Community Doodle locally at the start of a new round
+        try { clearCommunityDoodleLocal(); setSharedCanvasLocked(false); } catch(_) {}
 
         const firstPlayer = room.order && room.order.length ? room.order[0] : room.host;
         if(username === firstPlayer){
@@ -597,28 +613,24 @@ let __lastCelebrationKey = null;
       const myTurn = (current === username);
 
       if(room.state === 'drawing'){
-        try{ setSharedCanvasLocked(false); }catch(_){ }
         if(myTurn) {
           showOnly('drawingScreen');
           startDrawingPhase(room, idx);
           setTurnBanner("");
         } else {
           showOnly('waitScreen');
-          try{ setSharedCanvasLocked(false); }catch(_){ }
           setPhaseBanner('drawing', current);
         }
         return;
       }
 
       if(room.state === 'guessing'){
-        try{ setSharedCanvasLocked(false); }catch(_){ }
         if(myTurn) {
           showOnly('guessScreen');
           startGuessingPhase(room, idx);
           setTurnBanner("");
         } else {
           showOnly('waitScreen');
-          try{ setSharedCanvasLocked(false); }catch(_){ }
           setPhaseBanner('guessing', current);
         }
         return;
@@ -854,6 +866,7 @@ let __lastCelebrationKey = null;
             const room = s.val();
             const idx = room.currentIndex || 0;
             const u = {};
+        u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = null;
             u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
             const next = idx + 1;
             if(next >= (room.order||[]).length){
@@ -990,8 +1003,9 @@ let __lastCelebrationKey = null;
         ['rooms/'+roomCode+'/gameData']: {},
         ['rooms/'+roomCode+'/word']: null,
         ['rooms/'+roomCode+'/state']: 'wordSelect',
-        ['rooms/'+roomCode+'/turnStart']: null
-      };
+        ['rooms/'+roomCode+'/turnStart']: null,
+      
+        };
       return db.ref().update(u);
     });
   }
@@ -1251,30 +1265,23 @@ function setSharedCanvasLocked(isLocked){
   el.style.opacity = isLocked ? 0.6 : 1.0;
   el.style.pointerEvents = isLocked ? 'none' : 'auto';
 }
-// =================== End Community Doodle ===================
 
-// Lock doodle only on Results; unlock for lobby/wordSelect/drawing/guessing/wait
-function updateDoodleLock(room){
+// ---- Helper: Clear Community Doodle locally (canvas + results block) ----
+function clearCommunityDoodleLocal(){
   try {
-    const state = (room && room.state) || '';
-    const shouldLock = (state === 'results');
-    setSharedCanvasLocked(shouldLock);
-  } catch (_) {}
+    const block = document.getElementById('communityDoodleResultsBlock');
+    if (block && block.parentElement) block.parentElement.removeChild(block);
+  } catch(_) {}
+  try {
+    if (sharedCtx && sharedCanvas) {
+      sharedCtx.clearRect(0,0,sharedCanvas.width,sharedCanvas.height);
+      sharedCtx.fillStyle = "#fff";
+      sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
+    }
+  } catch(_) {}
 }
 
-
-
-// Render doodle once per Results entry (no effect on other states)
-let __lastResultsToken = null;
-function maybeRenderResultsDoodle(room){
-  if(!room || room.state !== 'results') return;
-  // Use turnStart (or timestamp-like field) as token to detect a new round
-  const token = (room.turnStart || 0);
-  if(__lastResultsToken === token) return; // already rendered for this results
-  __lastResultsToken = token;
-  renderCommunityDoodleInResults();
-}
-
+// =================== End Community Doodle ===================
 
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
