@@ -104,6 +104,17 @@
   }
 
   .emojiFlow { font-size: 1.1em; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; }
+/* --- Community Doodle / overlay safety --- */
+#fireworksCanvas,
+#confettiCanvas,
+.confetti-canvas,
+.resultsOverlay,
+.modal-backdrop { pointer-events: none !important; }
+.modal-backdrop.active,
+.resultsOverlay.active { pointer-events: auto !important; }
+#sharedCanvasPanel { position: relative; z-index: 1; }
+header, .homeScreen, .controls, .buttons { position: relative; z-index: 2; }
+
 </style>
 </head>
 <body>
@@ -168,13 +179,28 @@
 <input id="guessInput" placeholder="Type your guess here" type="text"/>
 <div style="margin-top:8px;">
 <span class="timer" id="guessTimer">30s</span>
-<button onclick="submitGuess()">Submit Guess</button>
+<button id="submitGuessBtn" onclick="return submitGuess()">Submit Guess</button>
 </div>
 <img id="guessImage"/>
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
 </div>
 <div class="container hidden" id="waitScreen">
 <div id="turnBanner"></div>
+<div id="sharedCanvasPanel" style="margin-top:16px;">
+  <h4 style="margin:8px 0;text-align:center;font-weight:800;">
+    <span style="color:#c63a41">C</span><span style="color:#2e8a39">o</span><span style="color:#c19a10">m</span><span style="color:#0066a3">m</span><span style="color:#d66a20">u</span><span style="color:#6d1598">n</span><span style="color:#2da9a9">i</span><span style="color:#b022b9">t</span><span style="color:#a0bf2e">y</span>
+    <span style="color:#e07e96">D</span><span style="color:#006b6b">o</span><span style="color:#a675ff">o</span><span style="color:#88521d">d</span><span style="color:#4fbf8a">l</span><span style="color:#364fc7">e</span>
+  </h4>
+  <div style="text-align:center;color:var(--accent);font-size:12px;margin:-2px 0 2px;">
+    A fun shared canvas for everyone who isn’t drawing or guessing.
+  </div>
+  <div style="text-align:center;color:var(--accent);font-size:12px;margin:0 0 8px;">
+    Add to it while you wait, and we’ll show it on the Results screen.
+  </div>
+  <canvas id="sharedCanvas" width="720" height="460"></canvas>
+  <div class="muted" style="margin-top:6px;">Your color: <span id="sharedColorSwatch">#0082c8</span></div>
+</div>
+
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
 </div>
 <div class="container hidden" id="resultsScreen">
@@ -205,6 +231,8 @@
 
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
+// Prevent duplicate celebration triggers per results round
+let __lastCelebrationKey = null;
 
   // Track turn identity to reset only on new turns, not reconnects
   let lastTurnKey = null;
@@ -361,29 +389,13 @@
 }
 
   function confirmWord(){
+      { const __cv = (byId('customWord') && byId('customWord').value || '').trim();
+        if(!__cv){ alert("Please enter a word or phrase before starting."); return; } }
+
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
     if(!w) return alert("Pick or enter a word/phrase first");
-    if(!c){alert('Please enter a word or phrase first.');return;}// Assign per-room unique colors and start first round (host)
-db.ref('rooms/'+roomCode).once('value').then(snap=>{
-  const room = snap.val()||{};
-  const names = Array.isArray(room.order) && room.order.length ? room.order.slice(0,15)
-              : (Array.isArray(room.players) && room.players.length ? room.players.slice(0,15)
-              : (room.players && typeof room.players==='object' ? Object.values(room.players).slice(0,15) : []));
-  const roundKey = Date.now();
-  const pal = (typeof PALETTE15!=='undefined' ? PALETTE15.slice() : ["#c63a41","#2e8a39","#c19a10","#0066a3","#d66a20","#6d1598","#2da9a9","#b022b9","#a0bf2e","#e07e96","#006b6b","#a675ff","#88521d","#4fbf8a","#364fc7"]);
-  for(let i=pal.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pal[i],pal[j]]=[pal[j],pal[i]]; }
-  const mapping = {}; names.forEach((n,i)=>{ mapping[n] = pal[i % pal.length]; });
-  const updates = {};
-  updates['rooms/'+roomCode+'/playerColors'] = Object.keys(mapping).length ? mapping : (room.playerColors||{});
-  updates['rooms/'+roomCode+'/sharedCanvasRound'] = roundKey;
-  updates['rooms/'+roomCode+'/word'] = w;
-  updates['rooms/'+roomCode+'/state'] = 'drawing';
-  updates['rooms/'+roomCode+'/currentIndex'] = 0;
-  updates['rooms/'+roomCode+'/turnStart'] = firebase.database.ServerValue.TIMESTAMP;
-  return db.ref().update(updates);
-});
-
+    if(!c){alert('Please enter a word or phrase first.');return;}db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: firebase.database.ServerValue.TIMESTAMP });
   }
 
   let roomListenerAttached = false;
@@ -398,6 +410,8 @@ db.ref('rooms/'+roomCode).once('value').then(snap=>{
       renderTurnOrder(room);
       startSharedTurnTicker(room);
 
+      attachSharedListener(room);
+      ensurePlayerColors(room);
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
@@ -411,7 +425,7 @@ db.ref('rooms/'+roomCode).once('value').then(snap=>{
           showOnly('wordSelectScreen');
         } else {
           showOnly('waitScreen');
-          setTurnBanner("");
+          setTurnBanner("⏳ Waiting for the host to pick a word or phrase. The game will start once the host confirms.");
         }
         return;
       }
@@ -722,6 +736,19 @@ db.ref('rooms/'+roomCode).once('value').then(snap=>{
   }
 
   function submitGuess(){
+  /* GUARD: no blank manual submit */
+  try {
+    var __el = byId('guessInput');
+    var __v = (__el && __el.value || '').trim();
+    if(!__v){
+      alert("Please type a guess (or wait for the timer to auto-submit).");
+      return false;
+    }
+  } catch(e) { /* fallthrough */ }
+
+  { const __gv = (byId('guessInput') && byId('guessInput').value || '').trim();
+    if(!__gv){ alert("Please type a guess (or wait for the timer to auto-submit)."); return; } }
+
     const val = (byId('guessInput').value || '').trim();
     if(!val){
       alert("Please type a guess (or wait for the timer to auto-submit).");
@@ -781,8 +808,27 @@ db.ref('rooms/'+roomCode).once('value').then(snap=>{
       list.appendChild(block);
     });
 
-    // Confetti burst (classic party colors) centered on screen for ~2s
-    startConfetti(2000);
+    
+// Community Doodle composite (best-effort)
+try{
+  db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value').then(s=>{
+    const data = s.val()||{}; const keys = Object.keys(data);
+    if(!keys.length) return;
+    const off = document.createElement('canvas'); off.width=720; off.height=460;
+    const octx = off.getContext('2d'); octx.fillStyle="#fff"; octx.fillRect(0,0,off.width,off.height);
+    keys.forEach(k=>{ const st=data[k]; if(!st||!st.pts||!st.pts.length) return;
+      octx.lineWidth=3; octx.lineCap="round"; octx.strokeStyle=st.color||"#333";
+      const pts=st.pts; octx.beginPath(); octx.moveTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++){ octx.lineTo(pts[i].x,pts[i].y); } octx.stroke();
+    });
+    const img=document.createElement('img'); img.src=off.toDataURL('image/png'); img.classList.add('resultDrawing');
+    const hdr=document.createElement('div'); hdr.classList.add('resultStepHeader'); hdr.innerText="Community Doodle"; list.appendChild(hdr); list.appendChild(img);
+    const div=document.createElement('div'); div.classList.add('resultDivider'); list.appendChild(div);
+  });
+}catch(_){}
+
+$0
+    (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ startConfetti(2000); __lastCelebrationKey = key; } })();
   }
 
   function restartGame(){
@@ -889,6 +935,159 @@ db.ref('rooms/'+roomCode).once('value').then(snap=>{
   /* -------------------------------------------------------------------- */
   
 
+
+// =================== Shared Community Doodle (starts when game begins) ===================
+let sharedCanvas = null, sharedCtx = null;
+let sharedDrawing = false, sharedStroke = null;
+let sharedPathRef = null, sharedListenerAttachedKey = null;
+
+// Fixed palette (15 players max)
+const PALETTE15 = ["#c63a41","#2e8a39","#c19a10","#0066a3","#d66a20",
+                   "#6d1598","#2da9a9","#b022b9","#a0bf2e","#e07e96",
+                   "#006b6b","#a675ff","#88521d","#4fbf8a","#364fc7"];
+
+// Player color map stored in DB
+let playerColors = {}; // { username: "#RRGGBB" }
+function getSharedColor(name){
+  return (playerColors && playerColors[name]) || "#0082c8"; // safe fallback so UI never shows '-'
+}
+
+function initSharedCanvasIfNeeded(){
+  if(sharedCanvas) return;
+  sharedCanvas = byId('sharedCanvas');
+  if(!sharedCanvas) return;
+  sharedCtx = sharedCanvas.getContext('2d');
+  sharedCtx.fillStyle = "#fff";
+  sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
+
+  const c = getSharedColor(username||"guest") || "#0082c8";
+  const sw = byId('sharedColorSwatch');
+  if(sw){ sw.textContent = c; sw.style.color = c; }
+
+  const getPos = (e)=>{
+    const r = sharedCanvas.getBoundingClientRect();
+    const sx = sharedCanvas.width / r.width, sy = sharedCanvas.height / r.height;
+    let cx, cy;
+    if(e.touches && e.touches.length){ cx=e.touches[0].clientX; cy=e.touches[0].clientY; }
+    else { cx=(e.clientX ?? e.x ?? 0); cy=(e.clientY ?? e.y ?? 0); }
+    return {x:(cx-r.left)*sx, y:(cy-r.top)*sy, t: Date.now()};
+  };
+
+  const begin = (e)=>{
+    sharedDrawing = true;
+    sharedStroke = { color: (getSharedColor(username||"guest") || "#0082c8"), pts:[getPos(e)] };
+    drawSharedIncremental();
+  };
+  const move = (e)=>{
+    if(!sharedDrawing) return;
+    const p = getPos(e);
+    const last = sharedStroke.pts[sharedStroke.pts.length-1];
+    if(!last || (p.t-last.t) > 35){
+      sharedStroke.pts.push(p);
+      drawSharedIncremental();
+    }
+  };
+  const end = ()=>{
+    if(!sharedDrawing) return;
+    sharedDrawing=false;
+    try{
+      if(sharedPathRef && sharedStroke && sharedStroke.pts && sharedStroke.pts.length>1){
+        const pts = sharedStroke.pts.map(p=>({x:Math.round(p.x), y:Math.round(p.y), t:p.t}));
+        sharedPathRef.push({ color: sharedStroke.color, player: username, pts, ts: firebase.database.ServerValue.TIMESTAMP });
+      }
+    }catch(_){}
+    sharedStroke=null;
+  };
+
+  sharedCanvas.addEventListener('mousedown', begin);
+  sharedCanvas.addEventListener('mousemove', move);
+  sharedCanvas.addEventListener('mouseup', end);
+  sharedCanvas.addEventListener('mouseleave', end);
+  sharedCanvas.addEventListener('touchstart', e=>{e.preventDefault();begin(e);},{passive:false});
+  sharedCanvas.addEventListener('touchmove', e=>{e.preventDefault();move(e);},{passive:false});
+  sharedCanvas.addEventListener('touchend', e=>{e.preventDefault();end();},{passive:false});
+}
+
+function drawSharedIncremental(){
+  if(!sharedCtx || !sharedStroke) return;
+  const pts = sharedStroke.pts, c = sharedStroke.color;
+  sharedCtx.lineWidth = 3; sharedCtx.lineCap = "round"; sharedCtx.strokeStyle = c;
+  const n = pts.length;
+  if(n===1){ sharedCtx.beginPath(); sharedCtx.moveTo(pts[0].x, pts[0].y); }
+  else { sharedCtx.lineTo(pts[n-1].x, pts[n-1].y); sharedCtx.stroke(); }
+}
+
+function attachSharedListener(room){
+  // Only after game has begun (not in lobby)
+  if(!room || room.state === 'lobby') return;
+
+  initSharedCanvasIfNeeded();
+  if(!sharedCanvas) return;
+
+  // Single global path so doodle persists through the whole game
+  const path = `rooms/${roomCode}/sharedCanvas/global/strokes`;
+  if(sharedListenerAttachedKey !== path){
+    if(sharedPathRef){ sharedPathRef.off(); }
+    sharedPathRef = db.ref(path);
+    sharedListenerAttachedKey = path;
+    // Replay + live listen
+    sharedPathRef.limitToLast(5000).on('child_added', snap=>{
+      const st = snap.val(); if(!st||!st.pts||!st.pts.length) return;
+      sharedCtx.lineWidth = 3; sharedCtx.lineCap="round"; sharedCtx.strokeStyle = st.color || "#333";
+      const pts = st.pts;
+      sharedCtx.beginPath(); sharedCtx.moveTo(pts[0].x, pts[0].y);
+      for(let i=1;i<pts.length;i++){ sharedCtx.lineTo(pts[i].x, pts[i].y); } sharedCtx.stroke();
+    });
+  }
+
+  // Subscribe to per-room color assignments (update swatch)
+  db.ref(`rooms/${roomCode}/playerColors`).on('value', snap=>{
+    playerColors = snap.val() || {};
+    const c = getSharedColor(username||"guest") || "#0082c8";
+    const sw = byId('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
+  });
+}
+
+// Host-only: ensure each player has a unique color once per room
+function ensurePlayerColors(room){
+  try{
+    if(!room) return;
+    const myName = (username||'').toString().trim();
+    const hostName = (room.host||'').toString().trim();
+    if(myName !== hostName) return;
+
+    let list = [];
+    if (Array.isArray(room.order) && room.order.length) list = room.order.slice();
+    else if (Array.isArray(room.players) && room.players.length) list = room.players.slice();
+    else if (room.players && typeof room.players === 'object') list = Object.values(room.players);
+    list = (list||[]).slice(0,15);
+    if(!list.length) return;
+
+    const ref = db.ref('rooms/'+roomCode+'/playerColors');
+    ref.once('value').then(s=>{
+      const existing = s.val() || {};
+      if(list.every(n => !!existing[n])) return; // all set
+
+      const used = new Set(Object.values(existing||{}));
+      const avail = PALETTE15.filter(c => !used.has(c));
+
+      // shuffle players for random assignment
+      for(let i=list.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+
+      const mapping = { ...existing };
+      list.forEach((name, idx)=>{
+        if(!mapping[name]){
+          const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+          mapping[name] = c;
+        }
+      });
+      ref.set(mapping);
+    });
+  }catch(e){ /* noop */ }
+}
+
+// Hook: after each room update, when not in lobby, attach listener + ensure colors
+
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
 firebase.database().ref(".info/serverTimeOffset").on("value", snap => {
@@ -897,15 +1096,7 @@ firebase.database().ref(".info/serverTimeOffset").on("value", snap => {
 function getServerNow() { return Date.now() + serverOffset; }
 
 
-/* ---- Partial Guess Auto-Submit ---- */
-const originalSubmitGuess = submitGuess;
-submitGuess = function(){
-  const val = (byId('guessInput').value || '').trim();
-  if (!val) {
-    byId('guessInput').value = 'No guess';
-  }
-  originalSubmitGuess();
-};
+
 </script>
 </body>
 </html>
