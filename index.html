@@ -104,7 +104,7 @@
   }
 
   .emojiFlow { font-size: 1.1em; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; }
-/* Community Doodle + overlay safety (does not affect home buttons) */
+/* ---- Community Doodle / overlay safety ---- */
 #fireworksCanvas,
 #confettiCanvas,
 .confetti-canvas,
@@ -196,7 +196,7 @@
     Add to it while you wait, and we’ll show it on the Results screen.
   </div>
   <canvas id="sharedCanvas" width="720" height="460" style="touch-action:none;"></canvas>
-  <div class="muted" style="margin-top:6px;">Your color: <span id="sharedColorSwatch">#0082c8</span></div>
+  <div class="muted" style="margin-top:6px;">Your color: <span id="sharedColorSwatch">assigning…</span></div>
 </div>
 
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
@@ -229,6 +229,7 @@
 
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
+let __resultsConfettiKey = null; // guard confetti on results
 // Prevent duplicate celebration triggers per results round
 let __lastCelebrationKey = null;
 
@@ -807,7 +808,7 @@ let __lastCelebrationKey = null;
     });
 
     // Confetti burst (classic party colors) centered on screen for ~2s
-    (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ startConfetti(2000); __lastCelebrationKey = key; } })();
+    (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ (function(){ const key = (room && room.word ? room.word : '') + '|' + (room && room.state ? room.state : 'results'); if(__resultsConfettiKey !== key){ startConfetti(2000); __resultsConfettiKey = key; } })(); __lastCelebrationKey = key; } })();
   }
 
   function restartGame(){
@@ -915,32 +916,32 @@ let __lastCelebrationKey = null;
   
 
 
-// =================== Shared Community Doodle (global; shows only on WAIT) ===================
+// =================== Community Doodle (WAIT-only; no fallback drawing) ===================
 let sharedCanvas = null, sharedCtx = null;
 let sharedDrawing = false, sharedStroke = null;
 let sharedPathRef = null, sharedListenerAttachedKey = null;
 
-// Fixed preset palette (max 15 players)
+// Fixed 15-color palette
 const PALETTE15 = ["#c63a41","#2e8a39","#c19a10","#0066a3","#d66a20",
                    "#6d1598","#2da9a9","#b022b9","#a0bf2e","#e07e96",
                    "#006b6b","#a675ff","#88521d","#4fbf8a","#364fc7"];
 
-// Player color map stored in DB
-let playerColors = {}; // { username: "#RRGGBB" }
-function getSharedColor(name){
-  return (playerColors && playerColors[name]) || "#0082c8"; // fallback so UI never shows '-'
+// Player color map (keys normalized to lowercase-trim)
+let playerColors = {}; // { normalizedName: "#RRGGBB" }
+function normalizeName(n){ return (n||"").toString().trim().toLowerCase(); }
+function getAssignedColor(name){
+  return playerColors[normalizeName(name)]; // undefined until assigned
 }
 
 function initSharedCanvasIfNeeded(){
   if(sharedCanvas) return;
   sharedCanvas = document.getElementById('sharedCanvas');
-  if(!sharedCanvas) return; // Not on WAIT screen -> do nothing
+  if(!sharedCanvas) return; // only exists on WAIT screen
 
   sharedCtx = sharedCanvas.getContext('2d');
   sharedCtx.fillStyle = "#fff"; sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
 
-  const c = getSharedColor(username||"guest") || "#0082c8";
-  const sw = document.getElementById('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
+  updateSwatch(); // show 'assigning…' or hex
 
   const getPos = (e)=>{
     const r = sharedCanvas.getBoundingClientRect();
@@ -952,8 +953,13 @@ function initSharedCanvasIfNeeded(){
   };
 
   const begin = (e)=>{
+    const col = getAssignedColor(username);
+    if(!col){
+      alert("Your color is still being assigned. Please wait a moment.");
+      return;
+    }
     sharedDrawing = true;
-    sharedStroke  = { color: (getSharedColor(username||"guest")||"#0082c8"), pts:[getPos(e)] };
+    sharedStroke  = { color: col, pts:[getPos(e)] };
     drawSharedIncremental();
   };
   const move  = (e)=>{ if(!sharedDrawing) return; const p=getPos(e); const last=sharedStroke.pts[sharedStroke.pts.length-1]; if(!last||(p.t-last.t)>35){ sharedStroke.pts.push(p); drawSharedIncremental(); } };
@@ -977,6 +983,14 @@ function initSharedCanvasIfNeeded(){
   sharedCanvas.addEventListener('touchend', e=>{e.preventDefault();end();},{passive:false});
 }
 
+function updateSwatch(){
+  const sw = document.getElementById('sharedColorSwatch');
+  if(!sw) return;
+  const col = getAssignedColor(username);
+  if(col){ sw.textContent = col; sw.style.color = col; }
+  else   { sw.textContent = 'assigning…'; sw.style.color = 'var(--accent)'; }
+}
+
 function drawSharedIncremental(){
   if(!sharedCtx || !sharedStroke) return;
   const pts = sharedStroke.pts, c = sharedStroke.color;
@@ -986,21 +1000,22 @@ function drawSharedIncremental(){
   else { sharedCtx.lineTo(pts[n-1].x, pts[n-1].y); sharedCtx.stroke(); }
 }
 
-// Attach listener only when the WAIT screen is visible (panel exists) and game has begun
+// Attach listener ONLY on WAIT screen and after game begins
 function attachSharedListener(room){
-  // Don't run in lobby or on screens without the panel
   if(!room || room.state === 'lobby') return;
+  // Only if panel exists (WAIT screen)
   if(!document.getElementById('sharedCanvas')) return;
 
   initSharedCanvasIfNeeded();
   if(!sharedCanvas) return;
 
-  // Use a global path so doodle persists during the game
+  // Global path so doodle persists during the game
   const path = `rooms/${roomCode}/sharedCanvas/global/strokes`;
   if(sharedListenerAttachedKey !== path){
     if(sharedPathRef){ sharedPathRef.off(); }
     sharedPathRef = db.ref(path);
     sharedListenerAttachedKey = path;
+    // Replay + live
     sharedPathRef.limitToLast(5000).on('child_added', snap=>{
       const st = snap.val(); if(!st||!st.pts||!st.pts.length) return;
       sharedCtx.lineWidth = 3; sharedCtx.lineCap="round"; sharedCtx.strokeStyle = st.color || "#333";
@@ -1009,34 +1024,34 @@ function attachSharedListener(room){
     });
   }
 
-  // Subscribe to per-room color assignments; update swatch
+  // Subscribe to per-room color assignments; keys normalized
   db.ref(`rooms/${roomCode}/playerColors`).on('value', snap=>{
-    playerColors = snap.val() || {};
-    const c = getSharedColor(username||"guest") || "#0082c8";
-    const sw = document.getElementById('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
+    const raw = snap.val() || {};
+    const norm = {}; Object.keys(raw).forEach(k => norm[normalizeName(k)] = raw[k]);
+    playerColors = norm;
+    updateSwatch();
   });
 }
 
-// Host-only: ensure each player has a unique color once per room (from PALETTE15)
+// Host-only: ensure each player has a unique color (normalized keys)
 function ensurePlayerColors(room){
   try{
     if(!room) return;
-    const myName  = (username||'').toString().trim();
-    const hostName= (room.host||'').toString().trim();
+    const myName  = normalizeName(username);
+    const hostName= normalizeName(room.host);
     if(myName !== hostName) return;
 
     let list = [];
     if (Array.isArray(room.order) && room.order.length) list = room.order.slice();
     else if (Array.isArray(room.players) && room.players.length) list = room.players.slice();
     else if (room.players && typeof room.players === 'object') list = Object.values(room.players);
-    list = (list||[]).map(n => (n||'').toString().trim()).filter(Boolean).slice(0,15);
+    list = (list||[]).map(n => normalizeName(n)).filter(Boolean).slice(0,15);
     if(!list.length) return;
 
     const ref = db.ref('rooms/'+roomCode+'/playerColors');
     ref.once('value').then(s=>{
-      let existing = s.val() || {};
-      const normalized = {}; Object.keys(existing).forEach(k => normalized[(k||'').toString().trim()] = existing[k]);
-      existing = normalized;
+      const existingRaw = s.val() || {};
+      const existing = {}; Object.keys(existingRaw).forEach(k => existing[normalizeName(k)] = existingRaw[k]);
 
       const names = Array.from(new Set(list));
       if(names.every(n => !!existing[n])) return;
@@ -1044,7 +1059,7 @@ function ensurePlayerColors(room){
       const used  = new Set(Object.values(existing||{}));
       const avail = PALETTE15.filter(c => !used.has(c));
 
-      // Shuffle names for random assignment
+      // Shuffle names for randomness
       for(let i=names.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [names[i],names[j]]=[names[j],names[i]]; }
 
       const mapping = { ...existing };
@@ -1055,6 +1070,7 @@ function ensurePlayerColors(room){
         }
       });
 
+      // Write mapping with original case-insensitive keys standardized to lower-case
       if (JSON.stringify(mapping) !== JSON.stringify(existing)) {
         ref.set(mapping);
       }
@@ -1062,14 +1078,14 @@ function ensurePlayerColors(room){
   }catch(e){ /* noop */ }
 }
 
-// Lock/unlock the doodle (used on Results)
+// Lock/unlock the doodle (use when showing/hiding Results)
 function setSharedCanvasLocked(isLocked){
   const el = document.getElementById('sharedCanvas');
   if(!el) return;
   el.style.opacity = isLocked ? 0.6 : 1.0;
   el.style.pointerEvents = isLocked ? 'none' : 'auto';
 }
-// =================== End Shared Community Doodle ===================
+// =================== End Community Doodle ===================
 
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
