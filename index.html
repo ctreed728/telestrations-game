@@ -216,20 +216,20 @@
 // ---- Community Doodle: render composite on Results (under Restart Game) ----
 
 
-// Always rebuild the Community Doodle when entering Results, with cache-busting and DOM-ready checks
+// Build the Community Doodle image once when entering Results
 async function renderCommunityDoodleInResults() {
   try {
     const resultsScreen = document.getElementById('resultsScreen');
     if (!resultsScreen) return;
 
-    // Remove any previous doodle blocks to avoid stale images
+    // Remove any previous block to avoid stale image
     resultsScreen.querySelectorAll('#communityDoodleResultsBlock').forEach(el => el.remove());
 
-    // Get the latest strokes (global path persists for the whole game)
+    // Fetch latest strokes
     const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
-    if (!keys.length) return; // nothing to render
+    if (!keys.length) return;
 
     // Composite image
     const off = document.createElement('canvas'); off.width = 720; off.height = 460;
@@ -243,7 +243,7 @@ async function renderCommunityDoodleInResults() {
       octx.stroke();
     });
 
-    // Build block (with timestamp label for validation)
+    // Build block
     const block = document.createElement('div');
     block.id = 'communityDoodleResultsBlock';
     block.style.marginTop = '12px';
@@ -255,25 +255,19 @@ async function renderCommunityDoodleInResults() {
     block.appendChild(hdr);
 
     const img = document.createElement('img');
-    img.src = off.toDataURL('image/png') + '#' + Date.now(); // cache-bust even for same dataURL content
+    img.src = off.toDataURL('image/png'); // new data URL each render
     img.alt = 'Community Doodle';
     img.classList.add('resultDrawing');
     img.style.userSelect = 'none';
     img.style.pointerEvents = 'none'; // view-only on results
     block.appendChild(img);
 
-    const ts = document.createElement('div');
-    ts.className = 'muted';
-    ts.style.marginTop = '4px';
-    ts.style.fontSize = '12px';
-    ts.textContent = 'Updated: ' + new Date().toLocaleTimeString();
-    block.appendChild(ts);
-
     const divider = document.createElement('div');
     divider.classList.add('resultDivider');
     divider.style.marginTop = '8px';
     block.appendChild(divider);
 
+    // Place block after Restart panel/button container
     function findRestartAnchor() {
       const root = resultsScreen;
       const candidates = Array.from(root.querySelectorAll('button, input[type="button"], a, div, span'))
@@ -281,7 +275,7 @@ async function renderCommunityDoodleInResults() {
       if (!candidates.length) return null;
       const btn = candidates[0];
       let node = btn;
-      const MAX_STEPS = 8;
+      const MAX_STEPS = 6;
       for (let i=0; i<MAX_STEPS && node; i++) {
         node = node.parentElement;
         if (!node) break;
@@ -294,40 +288,18 @@ async function renderCommunityDoodleInResults() {
       return btn.parentElement || btn;
     }
 
-    function placeBlock() {
-      const anchor = findRestartAnchor();
-      if (anchor && anchor.parentElement) {
-        anchor.insertAdjacentElement('afterend', block);
-        try { setSharedCanvasLocked(true); } catch(_) {}
-        return true;
-      }
-      return false;
+    const anchor = findRestartAnchor();
+    if (anchor && anchor.parentElement) {
+      anchor.insertAdjacentElement('afterend', block);
+    } else {
+      resultsScreen.appendChild(block);
     }
 
-    if (!placeBlock()) {
-      // Retry if DOM is still building
-      let tries = 0;
-      const maxTries = 10;
-      const intId = setInterval(() => {
-        if (resultsScreen.querySelector('#communityDoodleResultsBlock')) { clearInterval(intId); return; }
-        if (placeBlock()) { clearInterval(intId); return; }
-        tries++;
-        if (tries >= maxTries) clearInterval(intId);
-      }, 250);
-    } else {
-      try { setSharedCanvasLocked(true); } catch(_) {}
-    }
+    try { setSharedCanvasLocked(true); } catch(_) {}
+
   } catch (e) {
     console.warn('renderCommunityDoodleInResults error:', e);
   }
-}
-
-// Extra: call it multiple times shortly after entering results to ensure freshness
-function nudgeRenderCommunityDoodleResults() {
-  setTimeout(renderCommunityDoodleInResults, 50);
-  setTimeout(renderCommunityDoodleInResults, 250);
-  setTimeout(renderCommunityDoodleInResults, 750);
-  setTimeout(renderCommunityDoodleInResults, 1500);
 }
 
 </script>
@@ -595,7 +567,7 @@ let __lastCelebrationKey = null;
       renderTurnOrder(room);
       startSharedTurnTicker(room);
 
-      if (room && room.state === 'results') { nudgeRenderCommunityDoodleResults(); }
+      maybeRenderResultsDoodle(room);
       updateDoodleLock(room);
       attachSharedListener(room);
       ensurePlayerColors(room);
@@ -1288,6 +1260,19 @@ function updateDoodleLock(room){
     const shouldLock = (state === 'results');
     setSharedCanvasLocked(shouldLock);
   } catch (_) {}
+}
+
+
+
+// Render doodle once per Results entry (no effect on other states)
+let __lastResultsToken = null;
+function maybeRenderResultsDoodle(room){
+  if(!room || room.state !== 'results') return;
+  // Use turnStart (or timestamp-like field) as token to detect a new round
+  const token = (room.turnStart || 0);
+  if(__lastResultsToken === token) return; // already rendered for this results
+  __lastResultsToken = token;
+  renderCommunityDoodleInResults();
 }
 
 
