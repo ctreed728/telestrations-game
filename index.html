@@ -168,7 +168,7 @@
 <input id="guessInput" placeholder="Type your guess here" type="text"/>
 <div style="margin-top:8px;">
 <span class="timer" id="guessTimer">30s</span>
-<button id="submitGuessBtn" onclick="return submitGuess()">Submit Guess</button>
+<button onclick="submitGuess()">Submit Guess</button>
 </div>
 <img id="guessImage"/>
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
@@ -205,8 +205,6 @@
 
   let username="", roomCode="", isHost=false, penSize=6;
   let drawInterval=null, guessInterval=null, turnTicker=null;
-// Prevent duplicate celebration triggers per results round
-let __lastCelebrationKey = null;
 
   // Track turn identity to reset only on new turns, not reconnects
   let lastTurnKey = null;
@@ -363,13 +361,29 @@ let __lastCelebrationKey = null;
 }
 
   function confirmWord(){
-      { const __cv = (byId('customWord') && byId('customWord').value || '').trim();
-        if(!__cv){ alert("Please enter a word or phrase before starting."); return; } }
-
     const c = byId('customWord').value.trim();
     const w = c || byId('suggestedWord').innerText;
     if(!w) return alert("Pick or enter a word/phrase first");
-    if(!c){alert('Please enter a word or phrase first.');return;}db.ref('rooms/'+roomCode).update({ word: w, state: 'drawing', currentIndex: 0, turnStart: firebase.database.ServerValue.TIMESTAMP });
+    if(!c){alert('Please enter a word or phrase first.');return;}// Assign per-room unique colors and start first round (host)
+db.ref('rooms/'+roomCode).once('value').then(snap=>{
+  const room = snap.val()||{};
+  const names = Array.isArray(room.order) && room.order.length ? room.order.slice(0,15)
+              : (Array.isArray(room.players) && room.players.length ? room.players.slice(0,15)
+              : (room.players && typeof room.players==='object' ? Object.values(room.players).slice(0,15) : []));
+  const roundKey = Date.now();
+  const pal = (typeof PALETTE15!=='undefined' ? PALETTE15.slice() : ["#c63a41","#2e8a39","#c19a10","#0066a3","#d66a20","#6d1598","#2da9a9","#b022b9","#a0bf2e","#e07e96","#006b6b","#a675ff","#88521d","#4fbf8a","#364fc7"]);
+  for(let i=pal.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pal[i],pal[j]]=[pal[j],pal[i]]; }
+  const mapping = {}; names.forEach((n,i)=>{ mapping[n] = pal[i % pal.length]; });
+  const updates = {};
+  updates['rooms/'+roomCode+'/playerColors'] = Object.keys(mapping).length ? mapping : (room.playerColors||{});
+  updates['rooms/'+roomCode+'/sharedCanvasRound'] = roundKey;
+  updates['rooms/'+roomCode+'/word'] = w;
+  updates['rooms/'+roomCode+'/state'] = 'drawing';
+  updates['rooms/'+roomCode+'/currentIndex'] = 0;
+  updates['rooms/'+roomCode+'/turnStart'] = firebase.database.ServerValue.TIMESTAMP;
+  return db.ref().update(updates);
+});
+
   }
 
   let roomListenerAttached = false;
@@ -397,7 +411,7 @@ let __lastCelebrationKey = null;
           showOnly('wordSelectScreen');
         } else {
           showOnly('waitScreen');
-          setTurnBanner("⏳ Waiting for the host to pick a word or phrase. The game will start once the host confirms.");
+          setTurnBanner("");
         }
         return;
       }
@@ -708,19 +722,6 @@ let __lastCelebrationKey = null;
   }
 
   function submitGuess(){
-  /* GUARD: no blank manual submit */
-  try {
-    var __el = byId('guessInput');
-    var __v = (__el && __el.value || '').trim();
-    if(!__v){
-      alert("Please type a guess (or wait for the timer to auto-submit).");
-      return false;
-    }
-  } catch(e) { /* fallthrough */ }
-
-  { const __gv = (byId('guessInput') && byId('guessInput').value || '').trim();
-    if(!__gv){ alert("Please type a guess (or wait for the timer to auto-submit)."); return; } }
-
     const val = (byId('guessInput').value || '').trim();
     if(!val){
       alert("Please type a guess (or wait for the timer to auto-submit).");
@@ -781,7 +782,7 @@ let __lastCelebrationKey = null;
     });
 
     // Confetti burst (classic party colors) centered on screen for ~2s
-    (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ startConfetti(2000); __lastCelebrationKey = key; } })();
+    startConfetti(2000);
   }
 
   function restartGame(){
@@ -896,7 +897,15 @@ firebase.database().ref(".info/serverTimeOffset").on("value", snap => {
 function getServerNow() { return Date.now() + serverOffset; }
 
 
-
+/* ---- Partial Guess Auto-Submit ---- */
+const originalSubmitGuess = submitGuess;
+submitGuess = function(){
+  const val = (byId('guessInput').value || '').trim();
+  if (!val) {
+    byId('guessInput').value = 'No guess';
+  }
+  originalSubmitGuess();
+};
 </script>
 </body>
 </html>
