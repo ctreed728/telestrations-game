@@ -584,12 +584,14 @@ let __lastCelebrationKey = null;
       renderTurnOrder(room);
       startSharedTurnTicker(room);
 
+      updateDoodleLock(room);
       attachSharedListener(room);
       ensurePlayerColors(room);
       if (room && room.state === 'results') { renderCommunityDoodleInResults(); }
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
+        try{ setSharedCanvasLocked(false); }catch(_){ }
         // New round setup: clear local buffers so nothing carries over
         strokes = [];
         if (typeof clearCanvas === 'function') clearCanvas();
@@ -611,24 +613,28 @@ let __lastCelebrationKey = null;
       const myTurn = (current === username);
 
       if(room.state === 'drawing'){
+        try{ setSharedCanvasLocked(false); }catch(_){ }
         if(myTurn) {
           showOnly('drawingScreen');
           startDrawingPhase(room, idx);
           setTurnBanner("");
         } else {
           showOnly('waitScreen');
+          try{ setSharedCanvasLocked(false); }catch(_){ }
           setPhaseBanner('drawing', current);
         }
         return;
       }
 
       if(room.state === 'guessing'){
+        try{ setSharedCanvasLocked(false); }catch(_){ }
         if(myTurn) {
           showOnly('guessScreen');
           startGuessingPhase(room, idx);
           setTurnBanner("");
         } else {
           showOnly('waitScreen');
+          try{ setSharedCanvasLocked(false); }catch(_){ }
           setPhaseBanner('guessing', current);
         }
         return;
@@ -1262,6 +1268,16 @@ function setSharedCanvasLocked(isLocked){
   el.style.pointerEvents = isLocked ? 'none' : 'auto';
 }
 // =================== End Community Doodle ===================
+
+// Lock doodle only on Results; unlock for lobby/wordSelect/drawing/guessing/wait
+function updateDoodleLock(room){
+  try {
+    const state = (room && room.state) || '';
+    const shouldLock = (state === 'results');
+    setSharedCanvasLocked(shouldLock);
+  } catch (_) {}
+}
+
 
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
