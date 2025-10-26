@@ -224,9 +224,7 @@ async function renderCommunityDoodleInResults() {
     if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
 
     // Fetch strokes once
-    const ridSnap = await db.ref(`rooms/${roomCode}/roundId`).once('value');
-    const rid = ridSnap.val() || 0;
-    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/round_${rid}/strokes`).once('value');
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
     if (!keys.length) return;
@@ -333,9 +331,7 @@ async function renderCommunityDoodleInResults() {
     if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
 
     // Fetch strokes once
-    const ridSnap = await db.ref(`rooms/${roomCode}/roundId`).once('value');
-    const rid = ridSnap.val() || 0;
-    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/round_${rid}/strokes`).once('value');
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
     if (!keys.length) return;
@@ -987,7 +983,6 @@ let __lastCelebrationKey = null;
       list.appendChild(block);
     });
 
-    try { renderCommunityDoodleInResults(); } catch(_) {}
     // Confetti burst (classic party colors) centered on screen for ~2s
     (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ (function(){ const key = (room && room.word ? room.word : '') + '|' + (room && room.state ? room.state : 'results'); if(__resultsConfettiKey !== key){ startConfetti(2000); __resultsConfettiKey = key; } })(); __lastCelebrationKey = key; } })();
   }
@@ -1007,7 +1002,7 @@ let __lastCelebrationKey = null;
         ['rooms/'+roomCode+'/state']: 'wordSelect',
         ['rooms/'+roomCode+'/turnStart']: null
       }
-      u['rooms/'+roomCode+'/roundId'] = ((room && room.roundId) ? (room.roundId + 1) : 1);;
+      u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = {};;
       return db.ref().update(u);
     });
   }
@@ -1113,7 +1108,10 @@ let playerColors = {}; // { normalizedName: "#RRGGBB" }
 function normalizeName(n){ return (n||"").toString().trim().toLowerCase(); }
 function getAssignedColor(name){
   return playerColors[normalizeName(name)]; // undefined until assigned
+
+  try { renderCommunityDoodleInResults_Auto(); } catch(_) {}
 }
+
 
 function initSharedCanvasIfNeeded(){
   if(sharedCanvas) return;
@@ -1192,8 +1190,7 @@ function attachSharedListener(room){
   if(!sharedCanvas) return;
 
   // Global path so doodle persists during the game
-  const rid = (room && room.roundId) || 0;
-  const path = `rooms/${roomCode}/sharedCanvas/round_${rid}/strokes`;
+  const path = `rooms/${roomCode}/sharedCanvas/global/strokes`;
   if(sharedListenerAttachedKey !== path){
     if(sharedPathRef){ sharedPathRef.off(); }
     sharedPathRef = db.ref(path);
@@ -1269,6 +1266,69 @@ function setSharedCanvasLocked(isLocked){
   el.style.pointerEvents = isLocked ? 'none' : 'auto';
 }
 // =================== End Community Doodle ===================
+
+
+// ---- Results: auto Community Doodle composite (appends after Restart) ----
+async function renderCommunityDoodleInResults_Auto(){
+  try {
+    const resultsScreen = document.getElementById('resultsScreen');
+    if (!resultsScreen) return;
+
+    // Avoid duplicates
+    if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
+
+    // Fetch strokes from global path (round-agnostic; we reset on restart)
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
+    const data = snap.val() || {};
+    const keys = Object.keys(data);
+    if (!keys.length) return; // nothing to show yet
+
+    // Build composite
+    const off = document.createElement('canvas'); off.width = 720; off.height = 460;
+    const octx = off.getContext('2d');
+    octx.fillStyle = "#fff"; octx.fillRect(0,0,off.width,off.height);
+    keys.forEach(k => {
+      const st = data[k]; if (!st || !st.pts || !st.pts.length) return;
+      octx.lineWidth = 3; octx.lineCap = "round"; octx.strokeStyle = st.color || "#333";
+      const pts = st.pts; octx.beginPath(); octx.moveTo(pts[0].x, pts[0].y);
+      for (let i=1;i<pts.length;i++) { octx.lineTo(pts[i].x, pts[i].y); }
+      octx.stroke();
+    });
+
+    // Compose UI block
+    const block = document.createElement('div');
+    block.id = 'communityDoodleResultsBlock';
+    block.classList.add('resultStepBlock');
+
+    const header = document.createElement('div');
+    header.classList.add('resultStepHeader');
+    header.innerText = 'Community Doodle — Final Composite';
+    block.appendChild(header);
+
+    const img = document.createElement('img');
+    img.alt = 'Community Doodle Composite';
+    img.width = 720; img.height = 460;
+    img.src = off.toDataURL('image/png');
+    img.style.border = '1px solid #ddd';
+    img.style.borderRadius = '12px';
+    img.style.display = 'block';
+    img.style.margin = '8px 0 12px';
+    block.appendChild(img);
+
+    const divider = document.createElement('div');
+    divider.classList.add('resultDivider');
+    block.appendChild(divider);
+
+    // Append strictly as the last element on the Results page (bottom)
+    resultsScreen.appendChild(block);
+
+    // Ensure WAIT canvas can't be edited now
+    try { setSharedCanvasLocked(true); } catch(_){}
+  } catch (e) {
+    console.warn('renderCommunityDoodleInResults_Auto error:', e);
+  }
+}
+// ---- End auto composite ----
 
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
