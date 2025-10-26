@@ -250,12 +250,43 @@
 <canvas class="hidden" id="confettiCanvas"></canvas>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">// Ensure each player has a unique random color from PALETTE15 (host only)
 // Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
+// Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
 function ensurePlayerColors(room){
   try{
-    if(!room || !room.order) return;
-    const isHost = (room.host && room.host === username);
+    if(!room) return;
+    window.latestRoom = room; // debugging
+
+    const myName = (username||"").toString().trim();
+    const hostName = (room.host||"").toString().trim();
+    const isHost = (myName === hostName);
     if(!isHost) return;
+
+    let list = [];
+    if (Array.isArray(room.order) && room.order.length) list = room.order.slice();
+    else if (Array.isArray(room.players) && room.players.length) list = room.players.slice();
+    else if (room.players && typeof room.players === 'object') list = Object.values(room.players);
+    list = (list||[]).slice(0,15);
+    if(!list.length) return;
+
     const existing = room.playerColors || {};
+    if(list.every(n => !!existing[n])) return;
+
+    const used = new Set(Object.values(existing||{}));
+    const avail = PALETTE15.filter(c => !used.has(c));
+
+    for(let i=list.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+
+    const mapping = { ...(existing||{}) };
+    list.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+};
     const order = (room.order || []).slice(0, 15);
     // If all players have colors, stop
     if(order.every(n => !!existing[n])) return;
@@ -304,12 +335,43 @@ function ensurePlayerColors(room){
 </script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js">// Ensure each player has a unique random color from PALETTE15 (host only)
 // Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
+// Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
 function ensurePlayerColors(room){
   try{
-    if(!room || !room.order) return;
-    const isHost = (room.host && room.host === username);
+    if(!room) return;
+    window.latestRoom = room; // debugging
+
+    const myName = (username||"").toString().trim();
+    const hostName = (room.host||"").toString().trim();
+    const isHost = (myName === hostName);
     if(!isHost) return;
+
+    let list = [];
+    if (Array.isArray(room.order) && room.order.length) list = room.order.slice();
+    else if (Array.isArray(room.players) && room.players.length) list = room.players.slice();
+    else if (room.players && typeof room.players === 'object') list = Object.values(room.players);
+    list = (list||[]).slice(0,15);
+    if(!list.length) return;
+
     const existing = room.playerColors || {};
+    if(list.every(n => !!existing[n])) return;
+
+    const used = new Set(Object.values(existing||{}));
+    const avail = PALETTE15.filter(c => !used.has(c));
+
+    for(let i=list.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+
+    const mapping = { ...(existing||{}) };
+    list.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+};
     const order = (room.order || []).slice(0, 15);
     // If all players have colors, stop
     if(order.every(n => !!existing[n])) return;
@@ -1206,12 +1268,43 @@ function getServerNow() { return Date.now() + serverOffset; }
 
 // Ensure each player has a unique random color from PALETTE15 (host only)
 // Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
+// Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
 function ensurePlayerColors(room){
   try{
-    if(!room || !room.order) return;
-    const isHost = (room.host && room.host === username);
+    if(!room) return;
+    window.latestRoom = room; // debugging
+
+    const myName = (username||"").toString().trim();
+    const hostName = (room.host||"").toString().trim();
+    const isHost = (myName === hostName);
     if(!isHost) return;
+
+    let list = [];
+    if (Array.isArray(room.order) && room.order.length) list = room.order.slice();
+    else if (Array.isArray(room.players) && room.players.length) list = room.players.slice();
+    else if (room.players && typeof room.players === 'object') list = Object.values(room.players);
+    list = (list||[]).slice(0,15);
+    if(!list.length) return;
+
     const existing = room.playerColors || {};
+    if(list.every(n => !!existing[n])) return;
+
+    const used = new Set(Object.values(existing||{}));
+    const avail = PALETTE15.filter(c => !used.has(c));
+
+    for(let i=list.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+
+    const mapping = { ...(existing||{}) };
+    list.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+};
     const order = (room.order || []).slice(0, 15);
     // If all players have colors, stop
     if(order.every(n => !!existing[n])) return;
