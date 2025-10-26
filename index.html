@@ -104,16 +104,14 @@
   }
 
   .emojiFlow { font-size: 1.1em; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; }
-/* --- Community Doodle / overlay safety --- */
+/* Community Doodle + overlay safety (does not affect home buttons) */
 #fireworksCanvas,
 #confettiCanvas,
 .confetti-canvas,
-.resultsOverlay,
-.modal-backdrop { pointer-events: none !important; }
-.modal-backdrop.active,
-.resultsOverlay.active { pointer-events: auto !important; }
+.resultsOverlay:not(.active),
+.modal-backdrop:not(.active) { pointer-events: none !important; }
+
 #sharedCanvasPanel { position: relative; z-index: 1; }
-header, .homeScreen, .controls, .buttons { position: relative; z-index: 2; }
 
 </style>
 </head>
@@ -182,21 +180,6 @@ header, .homeScreen, .controls, .buttons { position: relative; z-index: 2; }
 <button id="submitGuessBtn" onclick="return submitGuess()">Submit Guess</button>
 </div>
 <img id="guessImage"/>
-<div id="sharedCanvasPanel" style="margin-top:16px;">
-  <h4 style="margin:8px 0;text-align:center;font-weight:800;">
-    <span style="color:#c63a41">C</span><span style="color:#2e8a39">o</span><span style="color:#c19a10">m</span><span style="color:#0066a3">m</span><span style="color:#d66a20">u</span><span style="color:#6d1598">n</span><span style="color:#2da9a9">i</span><span style="color:#b022b9">t</span><span style="color:#a0bf2e">y</span>
-    <span style="color:#e07e96">D</span><span style="color:#006b6b">o</span><span style="color:#a675ff">o</span><span style="color:#88521d">d</span><span style="color:#4fbf8a">l</span><span style="color:#364fc7">e</span>
-  </h4>
-  <div style="text-align:center;color:var(--accent);font-size:12px;margin:-2px 0 2px;">
-    A fun shared canvas for everyone who isn’t drawing or guessing.
-  </div>
-  <div style="text-align:center;color:var(--accent);font-size:12px;margin:0 0 8px;">
-    Add to it while you wait, and we’ll show it on the Results screen.
-  </div>
-  <canvas id="sharedCanvas" width="720" height="460"></canvas>
-  <div class="muted" style="margin-top:6px;">Your color: <span id="sharedColorSwatch">#0082c8</span></div>
-</div>
-
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
 </div>
 <div class="container hidden" id="waitScreen">
@@ -212,7 +195,7 @@ header, .homeScreen, .controls, .buttons { position: relative; z-index: 2; }
   <div style="text-align:center;color:var(--accent);font-size:12px;margin:0 0 8px;">
     Add to it while you wait, and we’ll show it on the Results screen.
   </div>
-  <canvas id="sharedCanvas" width="720" height="460"></canvas>
+  <canvas id="sharedCanvas" width="720" height="460" style="touch-action:none;"></canvas>
   <div class="muted" style="margin-top:6px;">Your color: <span id="sharedColorSwatch">#0082c8</span></div>
 </div>
 
@@ -823,25 +806,7 @@ let __lastCelebrationKey = null;
       list.appendChild(block);
     });
 
-    
-// Community Doodle composite (best-effort)
-try{
-  db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value').then(s=>{
-    const data=s.val()||{}; const keys=Object.keys(data); if(!keys.length) return;
-    const off=document.createElement('canvas'); off.width=720; off.height=460;
-    const octx=off.getContext('2d'); octx.fillStyle="#fff"; octx.fillRect(0,0,off.width,off.height);
-    keys.forEach(k=>{ const st=data[k]; if(!st||!st.pts||!st.pts.length) return;
-      octx.lineWidth=3; octx.lineCap="round"; octx.strokeStyle=st.color||"#333";
-      const pts=st.pts; octx.beginPath(); octx.moveTo(pts[0].x,pts[0].y);
-      for(let i=1;i<pts.length;i++){ octx.lineTo(pts[i].x,pts[i].y); } octx.stroke();
-    });
-    const img=document.createElement('img'); img.src=off.toDataURL('image/png'); img.classList.add('resultDrawing');
-    const hdr=document.createElement('div'); hdr.classList.add('resultStepHeader'); hdr.innerText="Community Doodle"; list.appendChild(hdr); list.appendChild(img);
-    const div=document.createElement('div'); div.classList.add('resultDivider'); list.appendChild(div);
-  });
-}catch(_){}
-
-$0
+    // Confetti burst (classic party colors) centered on screen for ~2s
     (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ startConfetti(2000); __lastCelebrationKey = key; } })();
   }
 
@@ -950,12 +915,12 @@ $0
   
 
 
-// =================== Shared Community Doodle (global; after lobby) ===================
+// =================== Shared Community Doodle (global; shows only on WAIT) ===================
 let sharedCanvas = null, sharedCtx = null;
 let sharedDrawing = false, sharedStroke = null;
 let sharedPathRef = null, sharedListenerAttachedKey = null;
 
-// Fixed palette (15 players max)
+// Fixed preset palette (max 15 players)
 const PALETTE15 = ["#c63a41","#2e8a39","#c19a10","#0066a3","#d66a20",
                    "#6d1598","#2da9a9","#b022b9","#a0bf2e","#e07e96",
                    "#006b6b","#a675ff","#88521d","#4fbf8a","#364fc7"];
@@ -963,20 +928,21 @@ const PALETTE15 = ["#c63a41","#2e8a39","#c19a10","#0066a3","#d66a20",
 // Player color map stored in DB
 let playerColors = {}; // { username: "#RRGGBB" }
 function getSharedColor(name){
-  return (playerColors && playerColors[name]) || "#0082c8"; // fallback keeps UI usable
+  return (playerColors && playerColors[name]) || "#0082c8"; // fallback so UI never shows '-'
 }
 
 function initSharedCanvasIfNeeded(){
   if(sharedCanvas) return;
-  sharedCanvas = byId('sharedCanvas');
-  if(!sharedCanvas) return;
+  sharedCanvas = document.getElementById('sharedCanvas');
+  if(!sharedCanvas) return; // Not on WAIT screen -> do nothing
+
   sharedCtx = sharedCanvas.getContext('2d');
-  sharedCtx.fillStyle="#fff"; sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
+  sharedCtx.fillStyle = "#fff"; sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
 
   const c = getSharedColor(username||"guest") || "#0082c8";
-  const sw = byId('sharedColorSwatch'); if(sw){ sw.textContent=c; sw.style.color=c; }
+  const sw = document.getElementById('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
 
-  const getPos=(e)=>{
+  const getPos = (e)=>{
     const r = sharedCanvas.getBoundingClientRect();
     const sx = sharedCanvas.width / r.width, sy = sharedCanvas.height / r.height;
     let cx, cy;
@@ -984,9 +950,14 @@ function initSharedCanvasIfNeeded(){
     else { cx=(e.clientX ?? e.x ?? 0); cy=(e.clientY ?? e.y ?? 0); }
     return {x:(cx-r.left)*sx, y:(cy-r.top)*sy, t:Date.now()};
   };
-  const begin=(e)=>{ sharedDrawing=true; sharedStroke={color:(getSharedColor(username||"guest")||"#0082c8"), pts:[getPos(e)]}; drawSharedIncremental(); };
-  const move =(e)=>{ if(!sharedDrawing) return; const p=getPos(e); const last=sharedStroke.pts[sharedStroke.pts.length-1]; if(!last||(p.t-last.t)>35){ sharedStroke.pts.push(p); drawSharedIncremental(); } };
-  const end  =()=>{
+
+  const begin = (e)=>{
+    sharedDrawing = true;
+    sharedStroke  = { color: (getSharedColor(username||"guest")||"#0082c8"), pts:[getPos(e)] };
+    drawSharedIncremental();
+  };
+  const move  = (e)=>{ if(!sharedDrawing) return; const p=getPos(e); const last=sharedStroke.pts[sharedStroke.pts.length-1]; if(!last||(p.t-last.t)>35){ sharedStroke.pts.push(p); drawSharedIncremental(); } };
+  const end   = ()=>{
     if(!sharedDrawing) return; sharedDrawing=false;
     try{
       if(sharedPathRef && sharedStroke && sharedStroke.pts && sharedStroke.pts.length>1){
@@ -996,6 +967,7 @@ function initSharedCanvasIfNeeded(){
     }catch(_){}
     sharedStroke=null;
   };
+
   sharedCanvas.addEventListener('mousedown', begin);
   sharedCanvas.addEventListener('mousemove', move);
   sharedCanvas.addEventListener('mouseup', end);
@@ -1007,21 +979,23 @@ function initSharedCanvasIfNeeded(){
 
 function drawSharedIncremental(){
   if(!sharedCtx || !sharedStroke) return;
-  const pts=sharedStroke.pts, c=sharedStroke.color;
-  sharedCtx.lineWidth=3; sharedCtx.lineCap="round"; sharedCtx.strokeStyle=c;
-  const n=pts.length;
+  const pts = sharedStroke.pts, c = sharedStroke.color;
+  sharedCtx.lineWidth = 3; sharedCtx.lineCap = "round"; sharedCtx.strokeStyle = c;
+  const n = pts.length;
   if(n===1){ sharedCtx.beginPath(); sharedCtx.moveTo(pts[0].x, pts[0].y); }
   else { sharedCtx.lineTo(pts[n-1].x, pts[n-1].y); sharedCtx.stroke(); }
 }
 
+// Attach listener only when the WAIT screen is visible (panel exists) and game has begun
 function attachSharedListener(room){
-  // Only after game has begun (not in lobby)
+  // Don't run in lobby or on screens without the panel
   if(!room || room.state === 'lobby') return;
+  if(!document.getElementById('sharedCanvas')) return;
 
   initSharedCanvasIfNeeded();
   if(!sharedCanvas) return;
 
-  // Global path so doodle persists during the entire game
+  // Use a global path so doodle persists during the game
   const path = `rooms/${roomCode}/sharedCanvas/global/strokes`;
   if(sharedListenerAttachedKey !== path){
     if(sharedPathRef){ sharedPathRef.off(); }
@@ -1029,54 +1003,71 @@ function attachSharedListener(room){
     sharedListenerAttachedKey = path;
     sharedPathRef.limitToLast(5000).on('child_added', snap=>{
       const st = snap.val(); if(!st||!st.pts||!st.pts.length) return;
-      sharedCtx.lineWidth=3; sharedCtx.lineCap="round"; sharedCtx.strokeStyle = st.color || "#333";
-      const pts=st.pts; sharedCtx.beginPath(); sharedCtx.moveTo(pts[0].x,pts[0].y);
+      sharedCtx.lineWidth = 3; sharedCtx.lineCap="round"; sharedCtx.strokeStyle = st.color || "#333";
+      const pts = st.pts; sharedCtx.beginPath(); sharedCtx.moveTo(pts[0].x, pts[0].y);
       for(let i=1;i<pts.length;i++){ sharedCtx.lineTo(pts[i].x, pts[i].y); } sharedCtx.stroke();
     });
   }
 
-  // Subscribe to per-room color assignments (update swatch)
+  // Subscribe to per-room color assignments; update swatch
   db.ref(`rooms/${roomCode}/playerColors`).on('value', snap=>{
     playerColors = snap.val() || {};
     const c = getSharedColor(username||"guest") || "#0082c8";
-    const sw = byId('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
+    const sw = document.getElementById('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
   });
 }
 
-// Host-only: ensure each player has a unique color once per room
+// Host-only: ensure each player has a unique color once per room (from PALETTE15)
 function ensurePlayerColors(room){
   try{
     if(!room) return;
-    const myName = (username||'').toString().trim();
-    const hostName = (room.host||'').toString().trim();
+    const myName  = (username||'').toString().trim();
+    const hostName= (room.host||'').toString().trim();
     if(myName !== hostName) return;
 
     let list = [];
     if (Array.isArray(room.order) && room.order.length) list = room.order.slice();
-    else if (Array.isArray(room.players)) list = room.players.slice();
+    else if (Array.isArray(room.players) && room.players.length) list = room.players.slice();
     else if (room.players && typeof room.players === 'object') list = Object.values(room.players);
-    list = (list||[]).slice(0,15);
+    list = (list||[]).map(n => (n||'').toString().trim()).filter(Boolean).slice(0,15);
     if(!list.length) return;
 
     const ref = db.ref('rooms/'+roomCode+'/playerColors');
     ref.once('value').then(s=>{
-      const existing = s.val() || {};
-      if(list.every(n => !!existing[n])) return;
+      let existing = s.val() || {};
+      const normalized = {}; Object.keys(existing).forEach(k => normalized[(k||'').toString().trim()] = existing[k]);
+      existing = normalized;
 
-      const used = new Set(Object.values(existing||{}));
+      const names = Array.from(new Set(list));
+      if(names.every(n => !!existing[n])) return;
+
+      const used  = new Set(Object.values(existing||{}));
       const avail = PALETTE15.filter(c => !used.has(c));
-      // shuffle for random
-      for(let i=list.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+
+      // Shuffle names for random assignment
+      for(let i=names.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [names[i],names[j]]=[names[j],names[i]]; }
+
       const mapping = { ...existing };
-      list.forEach((name, idx)=>{
+      names.forEach((name, idx)=>{
         if(!mapping[name]){
-          const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
-          mapping[name] = c;
+          const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : null;
+          if (c) mapping[name] = c;
         }
       });
-      ref.set(mapping);
+
+      if (JSON.stringify(mapping) !== JSON.stringify(existing)) {
+        ref.set(mapping);
+      }
     });
   }catch(e){ /* noop */ }
+}
+
+// Lock/unlock the doodle (used on Results)
+function setSharedCanvasLocked(isLocked){
+  const el = document.getElementById('sharedCanvas');
+  if(!el) return;
+  el.style.opacity = isLocked ? 0.6 : 1.0;
+  el.style.pointerEvents = isLocked ? 'none' : 'auto';
 }
 // =================== End Shared Community Doodle ===================
 
