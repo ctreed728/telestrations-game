@@ -215,15 +215,17 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
 // ---- Community Doodle: render composite on Results (under Restart Game) ----
 
+
 async function renderCommunityDoodleInResults() {
   try {
     const resultsScreen = document.getElementById('resultsScreen');
     if (!resultsScreen) return;
 
-    // Avoid duplicates if already added
-    if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
+    // Always rebuild: remove any previous block so we don't show stale image
+    const old = resultsScreen.querySelector('#communityDoodleResultsBlock');
+    if (old && old.parentElement) old.parentElement.removeChild(old);
 
-    // Fetch strokes once
+    // Fetch the latest strokes
     const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
@@ -241,7 +243,7 @@ async function renderCommunityDoodleInResults() {
       octx.stroke();
     });
 
-    // Create block UI
+    // Create the results block
     const block = document.createElement('div');
     block.id = 'communityDoodleResultsBlock';
     block.style.marginTop = '12px';
@@ -265,15 +267,13 @@ async function renderCommunityDoodleInResults() {
     divider.style.marginTop = '8px';
     block.appendChild(divider);
 
-    // Helper: find the best container below "Restart" to insert after
+    // Place under the Restart panel/button container if we can find it
     function findRestartAnchor() {
-      // find restart button by text
-      const btns = Array.from(resultsScreen.querySelectorAll('button, input[type="button"], a, div, span'))
+      const root = resultsScreen;
+      const candidates = Array.from(root.querySelectorAll('button, input[type="button"], a, div, span'))
         .filter(n => /restart/i.test(n.textContent || '') || /restart/i.test(n.value || ''));
-      if (!btns.length) return null;
-      const btn = btns[0];
-
-      // climb to a likely panel/canvas container
+      if (!candidates.length) return null;
+      const btn = candidates[0];
       let node = btn;
       const MAX_STEPS = 6;
       for (let i=0; i<MAX_STEPS && node; i++) {
@@ -288,11 +288,9 @@ async function renderCommunityDoodleInResults() {
           return node;
         }
       }
-      // fallback: use the button's immediate parent
       return btn.parentElement || btn;
     }
 
-    // Try immediate placement; if results markup is still building, retry a few times
     function placeBlock() {
       const anchor = findRestartAnchor();
       if (anchor && anchor.parentElement) {
@@ -304,7 +302,7 @@ async function renderCommunityDoodleInResults() {
     }
 
     if (!placeBlock()) {
-      // Retry a few times to handle async results rendering
+      // Retry if DOM is still rendering
       let tries = 0;
       const maxTries = 8;
       const intId = setInterval(() => {
@@ -313,6 +311,8 @@ async function renderCommunityDoodleInResults() {
         tries++;
         if (tries >= maxTries) clearInterval(intId);
       }, 300);
+    } else {
+      try { setSharedCanvasLocked(true); } catch(_) {}
     }
   } catch (e) {
     console.warn('renderCommunityDoodleInResults error:', e);
