@@ -168,7 +168,7 @@
 <input id="guessInput" placeholder="Type your guess here" type="text"/>
 <div style="margin-top:8px;">
 <span class="timer" id="guessTimer">30s</span>
-<button onclick="submitGuess()">Submit Guess</button>
+<button id="submitGuessBtn" onclick="return submitGuess()">Submit Guess</button>
 </div>
 <img id="guessImage"/>
 <div class="turnOrderBox"><h4>Turn Order</h4><ul class="turnOrderList"></ul></div>
@@ -708,6 +708,16 @@ let __lastCelebrationKey = null;
   }
 
   function submitGuess(){
+  /* GUARD: no blank manual submit */
+  try {
+    var __el = byId('guessInput');
+    var __v = (__el && __el.value || '').trim();
+    if(!__v){
+      alert("Please type a guess (or wait for the timer to auto-submit).");
+      return false;
+    }
+  } catch(e) { /* fallthrough */ }
+
   { const __gv = (byId('guessInput') && byId('guessInput').value || '').trim();
     if(!__gv){ alert("Please type a guess (or wait for the timer to auto-submit)."); return; } }
 
