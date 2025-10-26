@@ -224,7 +224,9 @@ async function renderCommunityDoodleInResults() {
     if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
 
     // Fetch strokes once
-    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
+    const snap = const ridSnap = await db.ref(`rooms/${roomCode}/roundId`).once('value');
+    const rid = ridSnap.val() || 0;
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/round_${rid}/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
     if (!keys.length) return;
@@ -331,7 +333,7 @@ async function renderCommunityDoodleInResults() {
     if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
 
     // Fetch strokes once
-    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
+     db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
     if (!keys.length) return;
@@ -590,7 +592,6 @@ let __lastCelebrationKey = null;
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
-        try{ clearSharedCanvasLocalOnceForNewRound(); }catch(_){}
         // New round setup: clear local buffers so nothing carries over
         strokes = [];
         if (typeof clearCanvas === 'function') clearCanvas();
@@ -865,6 +866,8 @@ let __lastCelebrationKey = null;
             const room = s.val();
             const idx = room.currentIndex || 0;
             const u = {};
+        // Bump roundId for round-scoped Community Doodle
+        u['rooms/'+roomCode+'/roundId'] = ((room && room.roundId) ? (room.roundId + 1) : 1);
             u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
             const next = idx + 1;
             if(next >= (room.order||[]).length){
@@ -1003,7 +1006,6 @@ let __lastCelebrationKey = null;
         ['rooms/'+roomCode+'/state']: 'wordSelect',
         ['rooms/'+roomCode+'/turnStart']: null
       };
-        u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = {};
       return db.ref().update(u);
     });
   }
@@ -1188,7 +1190,8 @@ function attachSharedListener(room){
   if(!sharedCanvas) return;
 
   // Global path so doodle persists during the game
-  const path = `rooms/${roomCode}/sharedCanvas/global/strokes`;
+  const rid = (room && room.roundId) || 0;
+  const path = `rooms/${roomCode}/sharedCanvas/round_${rid}/strokes`;
   if(sharedListenerAttachedKey !== path){
     if(sharedPathRef){ sharedPathRef.off(); }
     sharedPathRef = db.ref(path);
@@ -1264,23 +1267,6 @@ function setSharedCanvasLocked(isLocked){
   el.style.pointerEvents = isLocked ? 'none' : 'auto';
 }
 // =================== End Community Doodle ===================
-
-
-// ---- Helper: clear shared canvas locally & remove prior Results composite ----
-function clearSharedCanvasLocalOnceForNewRound(){
-  try {
-    // Remove previous Community Doodle composite on Results if lingering in DOM
-    const block = document.getElementById('communityDoodleResultsBlock');
-    if (block && block.parentElement) block.parentElement.removeChild(block);
-  } catch(_) {}
-  try {
-    if (sharedCtx && sharedCanvas) {
-      sharedCtx.clearRect(0,0,sharedCanvas.width,sharedCanvas.height);
-      sharedCtx.fillStyle = "#fff";
-      sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
-    }
-  } catch(_) {}
-}
 
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
