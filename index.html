@@ -1002,7 +1002,7 @@ let __lastCelebrationKey = null;
         ['rooms/'+roomCode+'/state']: 'wordSelect',
         ['rooms/'+roomCode+'/turnStart']: null
       };
-        u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = null;
+        u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = {};
       return db.ref().update(u);
     });
   }
