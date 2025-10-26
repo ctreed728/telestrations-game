@@ -248,8 +248,64 @@
 </div>
 </div>
 <canvas class="hidden" id="confettiCanvas"></canvas>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">// Ensure each player has a unique random color from PALETTE15 (host only)
+function ensurePlayerColors(room){
+  try{
+    if(!room || !room.order) return;
+    const isHostUser = (room.host && room.host === username);
+    if(!isHostUser) return;
+    const order = (room.order || []).slice(0, 15);
+    const existing = room.playerColors || {};
+    const used = new Set(Object.values(existing));
+    // available colors
+    const avail = PALETTE15.filter(c => !used.has(c));
+    // if everyone already has a color, done
+    if(order.every(n => !!existing[n])) return;
+
+    // assign missing players with random unique colors
+    const shuffled = order.slice();
+    for(let i=shuffled.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]]; }
+    const mapping = Object.assign({}, existing);
+    shuffled.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+}
+
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js">// Ensure each player has a unique random color from PALETTE15 (host only)
+function ensurePlayerColors(room){
+  try{
+    if(!room || !room.order) return;
+    const isHostUser = (room.host && room.host === username);
+    if(!isHostUser) return;
+    const order = (room.order || []).slice(0, 15);
+    const existing = room.playerColors || {};
+    const used = new Set(Object.values(existing));
+    // available colors
+    const avail = PALETTE15.filter(c => !used.has(c));
+    // if everyone already has a color, done
+    if(order.every(n => !!existing[n])) return;
+
+    // assign missing players with random unique colors
+    const shuffled = order.slice();
+    for(let i=shuffled.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]]; }
+    const mapping = Object.assign({}, existing);
+    shuffled.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+}
+
+</script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
@@ -458,6 +514,7 @@ let __lastCelebrationKey = null;
       renderTurnOrder(room);
       startSharedTurnTicker(room);
       attachSharedListener(room);
+      ensurePlayerColors(room);
 
       if(room.state === 'lobby'){ showLobby(); return; }
 
@@ -1055,12 +1112,13 @@ function attachSharedListener(room){
 
   sharedPathRef = db.ref(path);
   sharedListenerAttachedKey = path;
-  // Load per-round assigned colors
-  db.ref(`rooms/${roomCode}/sharedCanvasColors/${roundKey}`).on('value', snap=>{
-    sharedColors = snap.val() || {};
-    const c = getSharedColor(username||"guest");
-    const sw = byId('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
-  });
+// Load per-room player color assignments
+db.ref(`rooms/${roomCode}/playerColors`).on('value', snap=>{
+  playerColors = snap.val() || {};
+  const c = getSharedColor(username||"guest");
+  const sw = byId('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
+});
+
   sharedPathRef.limitToLast(5000).on('child_added', snap=>{
     const st = snap.val();
     if(!st || !st.pts || !st.pts.length) return;
@@ -1071,6 +1129,15 @@ function attachSharedListener(room){
     sharedCtx.stroke();
   });
 }
+// ====== Shared Colors (unique per player, up to 15) ======
+const PALETTE15 = ["#c63a41","#2e8a39","#c19a10","#0066a3","#d66a20",
+                   "#6d1598","#2da9a9","#b022b9","#a0bf2e","#e07e96",
+                   "#006b6b","#a675ff","#88521d","#4fbf8a","#364fc7"];
+let playerColors = {}; // { username: "#RRGGBB" }
+function getSharedColor(name){
+  return (playerColors && playerColors[name]) || "#0082c8";
+}
+
 // =================== End Shared Community Doodle ===================
 
 /* ---- Timer Sync Fix ---- */
@@ -1081,6 +1148,34 @@ firebase.database().ref(".info/serverTimeOffset").on("value", snap => {
 function getServerNow() { return Date.now() + serverOffset; }
 
 
+
+// Ensure each player has a unique random color from PALETTE15 (host only)
+function ensurePlayerColors(room){
+  try{
+    if(!room || !room.order) return;
+    const isHostUser = (room.host && room.host === username);
+    if(!isHostUser) return;
+    const order = (room.order || []).slice(0, 15);
+    const existing = room.playerColors || {};
+    const used = new Set(Object.values(existing));
+    // available colors
+    const avail = PALETTE15.filter(c => !used.has(c));
+    // if everyone already has a color, done
+    if(order.every(n => !!existing[n])) return;
+
+    // assign missing players with random unique colors
+    const shuffled = order.slice();
+    for(let i=shuffled.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]]; }
+    const mapping = Object.assign({}, existing);
+    shuffled.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+}
 
 </script>
 </body>
