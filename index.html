@@ -216,22 +216,23 @@
 // ---- Community Doodle: render composite on Results (under Restart Game) ----
 
 
+// Always rebuild the Community Doodle when entering Results
 async function renderCommunityDoodleInResults() {
   try {
     const resultsScreen = document.getElementById('resultsScreen');
     if (!resultsScreen) return;
 
-    // Always rebuild: remove any previous block so we don't show stale image
+    // Remove any previous block to avoid stale images
     const old = resultsScreen.querySelector('#communityDoodleResultsBlock');
     if (old && old.parentElement) old.parentElement.removeChild(old);
 
-    // Fetch the latest strokes
+    // Fetch the latest strokes from the global path
     const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
-    if (!keys.length) return;
+    if (!keys.length) return; // nothing to render
 
-    // Build composite image from strokes
+    // Composite image
     const off = document.createElement('canvas'); off.width = 720; off.height = 460;
     const octx = off.getContext('2d');
     octx.fillStyle = "#fff"; octx.fillRect(0,0,off.width,off.height);
@@ -243,7 +244,7 @@ async function renderCommunityDoodleInResults() {
       octx.stroke();
     });
 
-    // Create the results block
+    // Build block
     const block = document.createElement('div');
     block.id = 'communityDoodleResultsBlock';
     block.style.marginTop = '12px';
@@ -255,11 +256,11 @@ async function renderCommunityDoodleInResults() {
     block.appendChild(hdr);
 
     const img = document.createElement('img');
-    img.src = off.toDataURL('image/png');
+    img.src = off.toDataURL('image/png'); // new data URL each time
     img.alt = 'Community Doodle';
     img.classList.add('resultDrawing');
     img.style.userSelect = 'none';
-    img.style.pointerEvents = 'none'; // strictly non-editable
+    img.style.pointerEvents = 'none'; // view-only on results
     block.appendChild(img);
 
     const divider = document.createElement('div');
@@ -267,7 +268,7 @@ async function renderCommunityDoodleInResults() {
     divider.style.marginTop = '8px';
     block.appendChild(divider);
 
-    // Place under the Restart panel/button container if we can find it
+    // Place it right under the Restart section container (button may be inside a panel/canvas)
     function findRestartAnchor() {
       const root = resultsScreen;
       const candidates = Array.from(root.querySelectorAll('button, input[type="button"], a, div, span'))
@@ -281,10 +282,7 @@ async function renderCommunityDoodleInResults() {
         if (!node) break;
         const cls = (node.className || '').toString();
         const tag = (node.tagName || '').toLowerCase();
-        if (
-          /panel|card|results|footer|actions|controls|container|canvas|box|section/i.test(cls) ||
-          tag === 'canvas'
-        ) {
+        if (/panel|card|results|footer|actions|controls|container|canvas|box|section/i.test(cls) || tag === 'canvas') {
           return node;
         }
       }
@@ -302,7 +300,6 @@ async function renderCommunityDoodleInResults() {
     }
 
     if (!placeBlock()) {
-      // Retry if DOM is still rendering
       let tries = 0;
       const maxTries = 8;
       const intId = setInterval(() => {
