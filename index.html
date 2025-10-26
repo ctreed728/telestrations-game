@@ -590,6 +590,7 @@ let __lastCelebrationKey = null;
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
+        try { clearSharedCanvasLocalForNewRound(); } catch(_) {}
         // New round setup: clear local buffers so nothing carries over
         strokes = [];
         if (typeof clearCanvas === 'function') clearCanvas();
@@ -1329,6 +1330,21 @@ async function renderCommunityDoodleInResults_Auto(){
   }
 }
 // ---- End auto composite ----
+
+
+// ---- Helper: Clear Community Doodle canvas locally at new round start ----
+function clearSharedCanvasLocalForNewRound(){
+  try {
+    if (typeof sharedCtx !== 'undefined' && sharedCtx && typeof sharedCanvas !== 'undefined' && sharedCanvas) {
+      sharedCtx.clearRect(0,0,sharedCanvas.width,sharedCanvas.height);
+      sharedCtx.fillStyle = "#fff";
+      sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
+    }
+    // Re-enable drawing on WAIT canvas
+    try { setSharedCanvasLocked(false); } catch(_) {}
+  } catch(_){}
+}
+// ---- End helper ----
 
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
