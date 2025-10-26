@@ -590,7 +590,6 @@ let __lastCelebrationKey = null;
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
-        try { clearSharedCanvasLocalForNewRound(); } catch(_) {}
         // New round setup: clear local buffers so nothing carries over
         strokes = [];
         if (typeof clearCanvas === 'function') clearCanvas();
@@ -1003,6 +1002,7 @@ let __lastCelebrationKey = null;
         ['rooms/'+roomCode+'/state']: 'wordSelect',
         ['rooms/'+roomCode+'/turnStart']: null
       }
+      u['rooms/'+roomCode+'/sharedCanvas/resetNonce'] = firebase.database.ServerValue.TIMESTAMP;
       u['rooms/'+roomCode+'/sharedCanvas/global/strokes'] = {};;
       return db.ref().update(u);
     });
@@ -1096,6 +1096,7 @@ let __lastCelebrationKey = null;
 
 // =================== Community Doodle (WAIT-only; no fallback drawing) ===================
 let sharedCanvas = null, sharedCtx = null;
+let sharedResetListenerAttached = false;
 let sharedDrawing = false, sharedStroke = null;
 let sharedPathRef = null, sharedListenerAttachedKey = null;
 
@@ -1188,7 +1189,9 @@ function attachSharedListener(room){
   if(!document.getElementById('sharedCanvas')) return;
 
   initSharedCanvasIfNeeded();
-  if(!sharedCanvas) return;
+  
+  try{ ensureResetNonceListener(); }catch(_){}
+if(!sharedCanvas) return;
 
   // Global path so doodle persists during the game
   const path = `rooms/${roomCode}/sharedCanvas/global/strokes`;
@@ -1332,19 +1335,27 @@ async function renderCommunityDoodleInResults_Auto(){
 // ---- End auto composite ----
 
 
-// ---- Helper: Clear Community Doodle canvas locally at new round start ----
-function clearSharedCanvasLocalForNewRound(){
-  try {
-    if (typeof sharedCtx !== 'undefined' && sharedCtx && typeof sharedCanvas !== 'undefined' && sharedCanvas) {
-      sharedCtx.clearRect(0,0,sharedCanvas.width,sharedCanvas.height);
-      sharedCtx.fillStyle = "#fff";
-      sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
-    }
-    // Re-enable drawing on WAIT canvas
-    try { setSharedCanvasLocked(false); } catch(_) {}
-  } catch(_){}
+// ---- Community Doodle: resetNonce listener (clears local canvas on round restart) ----
+function ensureResetNonceListener(){
+  try{
+    if(sharedResetListenerAttached) return;
+    if(!roomCode) return;
+    const ref = db.ref(`rooms/${roomCode}/sharedCanvas/resetNonce`);
+    ref.on('value', snap=>{
+      if(!snap.exists()) return;
+      try{
+        if(sharedCtx && sharedCanvas){
+          sharedCtx.clearRect(0,0,sharedCanvas.width,sharedCanvas.height);
+          sharedCtx.fillStyle = "#fff";
+          sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
+        }
+        try { setSharedCanvasLocked(false); } catch(_){}
+      }catch(_){}
+    });
+    sharedResetListenerAttached = true;
+  }catch(_){}
 }
-// ---- End helper ----
+// ---- End resetNonce listener ----
 
 /* ---- Timer Sync Fix ---- */
 let serverOffset = 0;
