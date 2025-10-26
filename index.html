@@ -333,7 +333,9 @@ async function renderCommunityDoodleInResults() {
     if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
 
     // Fetch strokes once
-     db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
+    const ridSnap = await db.ref(`rooms/${roomCode}/roundId`).once('value');
+    const rid = ridSnap.val() || 0;
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/round_${rid}/strokes`).once('value');
     const data = snap.val() || {};
     const keys = Object.keys(data);
     if (!keys.length) return;
@@ -866,8 +868,6 @@ let __lastCelebrationKey = null;
             const room = s.val();
             const idx = room.currentIndex || 0;
             const u = {};
-        // Bump roundId for round-scoped Community Doodle
-        u['rooms/'+roomCode+'/roundId'] = ((room && room.roundId) ? (room.roundId + 1) : 1);
             u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
             const next = idx + 1;
             if(next >= (room.order||[]).length){
@@ -987,6 +987,7 @@ let __lastCelebrationKey = null;
       list.appendChild(block);
     });
 
+    try { renderCommunityDoodleInResults(); } catch(_) {}
     // Confetti burst (classic party colors) centered on screen for ~2s
     (function(){ const key = (room.word||'') + '|' + Object.keys(room.gameData||{}).length; if(__lastCelebrationKey !== key){ (function(){ const key = (room && room.word ? room.word : '') + '|' + (room && room.state ? room.state : 'results'); if(__resultsConfettiKey !== key){ startConfetti(2000); __resultsConfettiKey = key; } })(); __lastCelebrationKey = key; } })();
   }
