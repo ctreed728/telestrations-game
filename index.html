@@ -212,8 +212,183 @@
 </div>
 </div>
 <canvas class="hidden" id="confettiCanvas"></canvas>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
+// ---- Community Doodle: render composite on Results (under Restart Game) ----
+
+async function renderCommunityDoodleInResults() {
+  try {
+    const resultsScreen = document.getElementById('resultsScreen');
+    if (!resultsScreen) return;
+
+    // Avoid duplicates if already added
+    if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
+
+    // Fetch strokes once
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
+    const data = snap.val() || {};
+    const keys = Object.keys(data);
+    if (!keys.length) return;
+
+    // Build composite image from strokes
+    const off = document.createElement('canvas'); off.width = 720; off.height = 460;
+    const octx = off.getContext('2d');
+    octx.fillStyle = "#fff"; octx.fillRect(0,0,off.width,off.height);
+    keys.forEach(k => {
+      const st = data[k]; if (!st || !st.pts || !st.pts.length) return;
+      octx.lineWidth = 3; octx.lineCap = "round"; octx.strokeStyle = st.color || "#333";
+      const pts = st.pts; octx.beginPath(); octx.moveTo(pts[0].x, pts[0].y);
+      for (let i=1;i<pts.length;i++) { octx.lineTo(pts[i].x, pts[i].y); }
+      octx.stroke();
+    });
+
+    // Create block UI
+    const block = document.createElement('div');
+    block.id = 'communityDoodleResultsBlock';
+    block.style.marginTop = '12px';
+    block.style.textAlign = 'center';
+
+    const hdr = document.createElement('div');
+    hdr.textContent = 'Community Doodle';
+    hdr.classList.add('resultStepHeader');
+    block.appendChild(hdr);
+
+    const img = document.createElement('img');
+    img.src = off.toDataURL('image/png');
+    img.alt = 'Community Doodle';
+    img.classList.add('resultDrawing');
+    img.style.userSelect = 'none';
+    img.style.pointerEvents = 'none'; // strictly non-editable
+    block.appendChild(img);
+
+    const divider = document.createElement('div');
+    divider.classList.add('resultDivider');
+    divider.style.marginTop = '8px';
+    block.appendChild(divider);
+
+    // Helper: find the best container below "Restart" to insert after
+    function findRestartAnchor() {
+      // find restart button by text
+      const btns = Array.from(resultsScreen.querySelectorAll('button, input[type="button"], a, div, span'))
+        .filter(n => /restart/i.test(n.textContent || '') || /restart/i.test(n.value || ''));
+      if (!btns.length) return null;
+      const btn = btns[0];
+
+      // climb to a likely panel/canvas container
+      let node = btn;
+      const MAX_STEPS = 6;
+      for (let i=0; i<MAX_STEPS && node; i++) {
+        node = node.parentElement;
+        if (!node) break;
+        const cls = (node.className || '').toString();
+        const tag = (node.tagName || '').toLowerCase();
+        if (
+          /panel|card|results|footer|actions|controls|container|canvas|box|section/i.test(cls) ||
+          tag === 'canvas'
+        ) {
+          return node;
+        }
+      }
+      // fallback: use the button's immediate parent
+      return btn.parentElement || btn;
+    }
+
+    // Try immediate placement; if results markup is still building, retry a few times
+    function placeBlock() {
+      const anchor = findRestartAnchor();
+      if (anchor && anchor.parentElement) {
+        anchor.insertAdjacentElement('afterend', block);
+        try { setSharedCanvasLocked(true); } catch(_) {}
+        return true;
+      }
+      return false;
+    }
+
+    if (!placeBlock()) {
+      // Retry a few times to handle async results rendering
+      let tries = 0;
+      const maxTries = 8;
+      const intId = setInterval(() => {
+        if (resultsScreen.querySelector('#communityDoodleResultsBlock')) { clearInterval(intId); return; }
+        if (placeBlock()) { clearInterval(intId); return; }
+        tries++;
+        if (tries >= maxTries) clearInterval(intId);
+      }, 300);
+    }
+  } catch (e) {
+    console.warn('renderCommunityDoodleInResults error:', e);
+  }
+}
+
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js">
+// ---- Community Doodle: render composite on Results (under Restart Game) ----
+async function renderCommunityDoodleInResults() {
+  try {
+    const resultsScreen = document.getElementById('resultsScreen');
+    if (!resultsScreen) return;
+
+    // Avoid duplicates if already added
+    if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
+
+    // Fetch strokes once
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
+    const data = snap.val() || {};
+    const keys = Object.keys(data);
+    if (!keys.length) return;
+
+    // Build composite image from strokes
+    const off = document.createElement('canvas'); off.width = 720; off.height = 460;
+    const octx = off.getContext('2d');
+    octx.fillStyle = "#fff"; octx.fillRect(0,0,off.width,off.height);
+    keys.forEach(k => {
+      const st = data[k]; if (!st || !st.pts || !st.pts.length) return;
+      octx.lineWidth = 3; octx.lineCap = "round"; octx.strokeStyle = st.color || "#333";
+      const pts = st.pts; octx.beginPath(); octx.moveTo(pts[0].x, pts[0].y);
+      for (let i=1;i<pts.length;i++) { octx.lineTo(pts[i].x, pts[i].y); }
+      octx.stroke();
+    });
+
+    // Create block UI
+    const block = document.createElement('div');
+    block.id = 'communityDoodleResultsBlock';
+    block.style.marginTop = '16px';
+    block.style.textAlign = 'center';
+
+    const hdr = document.createElement('div');
+    hdr.textContent = 'Community Doodle';
+    hdr.classList.add('resultStepHeader');
+    block.appendChild(hdr);
+
+    const img = document.createElement('img');
+    img.src = off.toDataURL('image/png');
+    img.alt = 'Community Doodle';
+    img.classList.add('resultDrawing');
+    img.style.userSelect = 'none';
+    img.style.pointerEvents = 'none'; // definitely non-editable
+    block.appendChild(img);
+
+    const divider = document.createElement('div');
+    divider.classList.add('resultDivider');
+    divider.style.marginTop = '8px';
+    block.appendChild(divider);
+
+    // Try to place directly under the "Restart Game" button/section if present
+    const restartBtn = Array.from(resultsScreen.querySelectorAll('button')).find(b => /restart/i.test(b.textContent || ''));
+    if (restartBtn && restartBtn.parentElement) {
+      restartBtn.parentElement.insertAdjacentElement('afterend', block);
+    } else {
+      // Fallback: append to end of results
+      resultsScreen.appendChild(block);
+    }
+
+    // Ensure canvas is locked in case the WAIT panel still exists in DOM off-screen
+    try { setSharedCanvasLocked(true); } catch(_) {}
+  } catch (e) {
+    console.warn('renderCommunityDoodleInResults error:', e);
+  }
+}
+
+</script>
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyD6LY0o8SfAqX08h3tuLheGJQ9YOm1IKE0",
@@ -411,6 +586,7 @@ let __lastCelebrationKey = null;
 
       attachSharedListener(room);
       ensurePlayerColors(room);
+      if (room && room.state === 'results') { renderCommunityDoodleInResults(); }
       if(room.state === 'lobby'){ showLobby(); return; }
 
       if(room.state === 'wordSelect'){
@@ -1095,6 +1271,74 @@ firebase.database().ref(".info/serverTimeOffset").on("value", snap => {
 function getServerNow() { return Date.now() + serverOffset; }
 
 
+
+
+// ---- Community Doodle: render composite on Results (under Restart Game) ----
+async function renderCommunityDoodleInResults() {
+  try {
+    const resultsScreen = document.getElementById('resultsScreen');
+    if (!resultsScreen) return;
+
+    // Avoid duplicates if already added
+    if (resultsScreen.querySelector('#communityDoodleResultsBlock')) return;
+
+    // Fetch strokes once
+    const snap = await db.ref(`rooms/${roomCode}/sharedCanvas/global/strokes`).once('value');
+    const data = snap.val() || {};
+    const keys = Object.keys(data);
+    if (!keys.length) return;
+
+    // Build composite image from strokes
+    const off = document.createElement('canvas'); off.width = 720; off.height = 460;
+    const octx = off.getContext('2d');
+    octx.fillStyle = "#fff"; octx.fillRect(0,0,off.width,off.height);
+    keys.forEach(k => {
+      const st = data[k]; if (!st || !st.pts || !st.pts.length) return;
+      octx.lineWidth = 3; octx.lineCap = "round"; octx.strokeStyle = st.color || "#333";
+      const pts = st.pts; octx.beginPath(); octx.moveTo(pts[0].x, pts[0].y);
+      for (let i=1;i<pts.length;i++) { octx.lineTo(pts[i].x, pts[i].y); }
+      octx.stroke();
+    });
+
+    // Create block UI
+    const block = document.createElement('div');
+    block.id = 'communityDoodleResultsBlock';
+    block.style.marginTop = '16px';
+    block.style.textAlign = 'center';
+
+    const hdr = document.createElement('div');
+    hdr.textContent = 'Community Doodle';
+    hdr.classList.add('resultStepHeader');
+    block.appendChild(hdr);
+
+    const img = document.createElement('img');
+    img.src = off.toDataURL('image/png');
+    img.alt = 'Community Doodle';
+    img.classList.add('resultDrawing');
+    img.style.userSelect = 'none';
+    img.style.pointerEvents = 'none'; // definitely non-editable
+    block.appendChild(img);
+
+    const divider = document.createElement('div');
+    divider.classList.add('resultDivider');
+    divider.style.marginTop = '8px';
+    block.appendChild(divider);
+
+    // Try to place directly under the "Restart Game" button/section if present
+    const restartBtn = Array.from(resultsScreen.querySelectorAll('button')).find(b => /restart/i.test(b.textContent || ''));
+    if (restartBtn && restartBtn.parentElement) {
+      restartBtn.parentElement.insertAdjacentElement('afterend', block);
+    } else {
+      // Fallback: append to end of results
+      resultsScreen.appendChild(block);
+    }
+
+    // Ensure canvas is locked in case the WAIT panel still exists in DOM off-screen
+    try { setSharedCanvasLocked(true); } catch(_) {}
+  } catch (e) {
+    console.warn('renderCommunityDoodleInResults error:', e);
+  }
+}
 
 </script>
 </body>
