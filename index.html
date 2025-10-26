@@ -249,13 +249,38 @@
 </div>
 <canvas class="hidden" id="confettiCanvas"></canvas>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">// Ensure each player has a unique random color from PALETTE15 (host only)
+// Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
 function ensurePlayerColors(room){
   try{
     if(!room || !room.order) return;
-    const isHostUser = (room.host && room.host === username);
-    if(!isHostUser) return;
-    const order = (room.order || []).slice(0, 15);
+    const isHost = (room.host && room.host === username);
+    if(!isHost) return;
     const existing = room.playerColors || {};
+    const order = (room.order || []).slice(0, 15);
+    // If all players have colors, stop
+    if(order.every(n => !!existing[n])) return;
+
+    // Build available colors (not already used)
+    const used = new Set(Object.values(existing));
+    const avail = PALETTE15.filter(c => !used.has(c));
+
+    // Shuffle players to randomize assignment order
+    const shuffled = order.slice();
+    for(let i=shuffled.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+    }
+
+    const mapping = { ...existing };
+    shuffled.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+};
     const used = new Set(Object.values(existing));
     // available colors
     const avail = PALETTE15.filter(c => !used.has(c));
@@ -278,13 +303,38 @@ function ensurePlayerColors(room){
 
 </script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js">// Ensure each player has a unique random color from PALETTE15 (host only)
+// Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
 function ensurePlayerColors(room){
   try{
     if(!room || !room.order) return;
-    const isHostUser = (room.host && room.host === username);
-    if(!isHostUser) return;
-    const order = (room.order || []).slice(0, 15);
+    const isHost = (room.host && room.host === username);
+    if(!isHost) return;
     const existing = room.playerColors || {};
+    const order = (room.order || []).slice(0, 15);
+    // If all players have colors, stop
+    if(order.every(n => !!existing[n])) return;
+
+    // Build available colors (not already used)
+    const used = new Set(Object.values(existing));
+    const avail = PALETTE15.filter(c => !used.has(c));
+
+    // Shuffle players to randomize assignment order
+    const shuffled = order.slice();
+    for(let i=shuffled.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+    }
+
+    const mapping = { ...existing };
+    shuffled.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+};
     const used = new Set(Object.values(existing));
     // available colors
     const avail = PALETTE15.filter(c => !used.has(c));
@@ -1049,7 +1099,7 @@ const SHARED_PALETTE = ["#e6194B","#3cb44b","#ffe119","#0082c8","#f58231","#911e
 // Mapping for this round: { username -> "#RRGGBB" }
 let sharedColors = {};
 function getSharedColor(name){
-  return (sharedColors && sharedColors[name]) || "#0082c8";
+  return playerColors && playerColors[name];
 }
 
 function initSharedCanvasIfNeeded(){
@@ -1059,7 +1109,8 @@ function initSharedCanvasIfNeeded(){
   sharedCtx = sharedCanvas.getContext('2d');
   sharedCtx.fillStyle = "#fff"; sharedCtx.fillRect(0,0,sharedCanvas.width,sharedCanvas.height);
   const c = getSharedColor(username||"guest");
-  const sw = byId('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
+  const sw = byId('sharedColorSwatch');
+  if(sw){ if(c){ sw.textContent = c; sw.style.color = c; } else { sw.textContent = 'assigning…'; sw.style.color = 'var(--accent)'; } }
 
   const getPos = (e)=>{
     const r = sharedCanvas.getBoundingClientRect();
@@ -1067,7 +1118,7 @@ function initSharedCanvasIfNeeded(){
     let cx, cy; if(e.touches && e.touches.length){ cx=e.touches[0].clientX; cy=e.touches[0].clientY; } else { cx=e.clientX ?? e.x ?? 0; cy=e.clientY ?? e.y ?? 0; }
     return {x:(cx-r.left)*sx, y:(cy-r.top)*sy, t: Date.now()};
   };
-  const begin = (e)=>{ sharedDrawing=true; sharedStroke={color: getSharedColor(username||"guest"), pts: [getPos(e)]}; drawSharedIncremental(); };
+  const begin = (e)=>{ const myColor = getSharedColor(username||"guest"); if(!myColor) return; sharedDrawing=true; sharedStroke={color: (getSharedColor(username||"guest")||'#000000'), pts: [getPos(e)]}; drawSharedIncremental(); };
   const move  = (e)=>{ if(!sharedDrawing) return; const p=getPos(e); const last=sharedStroke.pts.at(-1); if(!last || (p.t-last.t)>35){ sharedStroke.pts.push(p); drawSharedIncremental(); } };
   const end   = ()=>{
     if(!sharedDrawing) return; sharedDrawing=false;
@@ -1113,13 +1164,17 @@ function attachSharedListener(room){
   sharedPathRef = db.ref(path);
   sharedListenerAttachedKey = path;
 // Load per-room player color assignments
+db.ref(`// Load per-room player color assignments (no fallback)
 db.ref(`rooms/${roomCode}/playerColors`).on('value', snap=>{
   playerColors = snap.val() || {};
   const c = getSharedColor(username||"guest");
-  const sw = byId('sharedColorSwatch'); if(sw){ sw.textContent = c; sw.style.color = c; }
+  const sw = byId('sharedColorSwatch'); 
+  if(sw){
+    if(c){ sw.textContent = c; sw.style.color = c; }
+    else { sw.textContent = 'assigning…'; sw.style.color = 'var(--accent)'; }
+  }
 });
-
-  sharedPathRef.limitToLast(5000).on('child_added', snap=>{
+sharedPathRef.limitToLast(5000).on('child_added', snap=>{
     const st = snap.val();
     if(!st || !st.pts || !st.pts.length) return;
     sharedCtx.lineWidth = 3; sharedCtx.lineCap="round"; sharedCtx.strokeStyle = st.color || "#333";
@@ -1150,13 +1205,38 @@ function getServerNow() { return Date.now() + serverOffset; }
 
 
 // Ensure each player has a unique random color from PALETTE15 (host only)
+// Ensure each player has a unique random color from PALETTE15 (host only). No fallback.
 function ensurePlayerColors(room){
   try{
     if(!room || !room.order) return;
-    const isHostUser = (room.host && room.host === username);
-    if(!isHostUser) return;
-    const order = (room.order || []).slice(0, 15);
+    const isHost = (room.host && room.host === username);
+    if(!isHost) return;
     const existing = room.playerColors || {};
+    const order = (room.order || []).slice(0, 15);
+    // If all players have colors, stop
+    if(order.every(n => !!existing[n])) return;
+
+    // Build available colors (not already used)
+    const used = new Set(Object.values(existing));
+    const avail = PALETTE15.filter(c => !used.has(c));
+
+    // Shuffle players to randomize assignment order
+    const shuffled = order.slice();
+    for(let i=shuffled.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+    }
+
+    const mapping = { ...existing };
+    shuffled.forEach((name, idx) => {
+      if(!mapping[name]){
+        const c = avail.length ? avail.splice(Math.floor(Math.random()*avail.length),1)[0] : PALETTE15[idx % PALETTE15.length];
+        mapping[name] = c;
+      }
+    });
+    db.ref('rooms/'+roomCode+'/playerColors').set(mapping);
+  }catch(e){ /* noop */ }
+};
     const used = new Set(Object.values(existing));
     // available colors
     const avail = PALETTE15.filter(c => !used.has(c));
