@@ -959,18 +959,35 @@ const COMMUNITY_COLORS = [
 ];
 
 function ensureColorAssignment(room){
-  const cmap = room.colorMap || {};
-  if (cmap[username]) { setLocalColor(cmap[username]); return; }
+  // Use a transaction so multiple joiners don't claim the same color
+  const cmapRef = db.ref(`rooms/${roomCode}/colorMap`);
+  cmapRef.transaction(curr => {
+    const map = curr || {};
+    if (map[username]) return map; // already assigned
 
-  // pick an unused color, otherwise random
-  const used = new Set(Object.values(cmap));
-  let assigned = COMMUNITY_COLORS.find(c => !used.has(c));
-  if(!assigned){
-    assigned = COMMUNITY_COLORS[Math.floor(Math.random()*COMMUNITY_COLORS.length)];
-  }
-  const updates = {};
-  updates['rooms/'+roomCode+'/colorMap/'+username] = assigned;
-  db.ref().update(updates).then(()=> setLocalColor(assigned));
+    // pick an unused color first; if all used (shouldn't happen with max 15), fall back to random
+    const used = new Set(Object.values(map || {}));
+    let assigned = COMMUNITY_COLORS.find(c => !used.has(c));
+    if (!assigned) {
+      assigned = COMMUNITY_COLORS[Math.floor(Math.random() * COMMUNITY_COLORS.length)];
+    }
+    map[username] = assigned;
+    return map;
+  }, (error, committed, snap) => {
+    // Regardless of outcome, reflect whatever color the map currently has for this user
+    if (error) {
+      // Fallback attempt: read current color (if any) to avoid UI being stuck
+      cmapRef.once('value').then(s => {
+        const m = s.val() || {};
+        const col = m[username];
+        if (col) setLocalColor(col);
+      });
+      return;
+    }
+    const m = (snap && snap.val()) || {};
+    const col = m[username];
+    if (col) setLocalColor(col);
+  });
 }
 
 let myCommunityColor = "#22c55e";
