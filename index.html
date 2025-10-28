@@ -1023,10 +1023,10 @@ function ensureColorAssignment(room){
 
     // pick an unused color first; if all used (shouldn't happen with max 15), fall back to random
     const used = new Set(Object.values(map || {}));
-    let assigned = COMMUNITY_COLORS.find(c => !used.has(c));
-    if (!assigned) {
-      assigned = COMMUNITY_COLORS[Math.floor(Math.random() * COMMUNITY_COLORS.length)];
-    }
+    const available = COMMUNITY_COLORS.filter(c => !used.has(c));
+    let assigned = available.length
+      ? available[Math.floor(Math.random() * available.length)]
+      : COMMUNITY_COLORS[Math.floor(Math.random() * COMMUNITY_COLORS.length)];
     map[username] = assigned;
     return map;
   }, (error, committed, snap) => {
