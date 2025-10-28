@@ -165,13 +165,24 @@
   }
 
   /* Make the Original Word/Phrase value look like the green guess pill */
-  #finalWord {
+  
+
+
+  /* Make the Original Word/Phrase label + value one green pill */
+  #finalWordPill {
     display: inline-block;
     padding: 4px 12px;
     border-radius: 9999px;
     background: var(--green-oval-bg);
     border: 2px solid var(--green-oval-border);
     color: var(--green-text-dark);
+  }
+  #finalWordPill .pillLabel {
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  #finalWordPill #finalWord {
+    font-weight: 700;
   }
 
 </style>
@@ -261,11 +272,11 @@
 <!-- Results -->
 <div class="container hidden" id="resultsScreen">
 <h2 style="font-size:1.6em;color:var(--accent);">Results Summary</h2>
-<div class="finalWordRow" style="font-weight:700; font-size:1.25em">Original Word/Phrase: <span id="finalWord"></span></div>
+<div class="finalWordRow" style="font-weight:700; font-size:1.25em"><span id="finalWordPill"><span class="pillLabel">Original Word/Phrase:</span> <span id="finalWord"></span></span></div>
 <div id="resultsList" style="margin-top:12px;"></div>
 <!-- Community Doodle result (non-editable) -->
 <div class="hidden" id="communityResultsBox">
-<div class="resultStepHeader">Community Doodle</div>
+<div class="resultStepHeader"><span class="cd-letter">C</span><span class="cd-letter">o</span><span class="cd-letter">m</span><span class="cd-letter">m</span><span class="cd-letter">u</span><span class="cd-letter">n</span><span class="cd-letter">i</span><span class="cd-letter">t</span><span class="cd-letter">y</span> <span class="cd-letter">D</span><span class="cd-letter">o</span><span class="cd-letter">o</span><span class="cd-letter">d</span><span class="cd-letter">l</span><span class="cd-letter">e</span></div>
 <img alt="Final Community Doodle" class="resultDrawing" id="communityResultImage"/>
 <div class="resultDivider"></div>
 </div>
