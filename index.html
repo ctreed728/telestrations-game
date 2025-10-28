@@ -72,7 +72,7 @@
   }
 
   /* Localized solid-blue turn banner (replaces Waiting text) */
-  #turnBanner { display: none; margin: 8px auto 10px; background: var(--primary); color: #fff; font-weight: 600; padding: 8px 18px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); width: fit-content; }
+  #turnBanner { display: none; margin: 8px auto 10px; background: var(--green-oval-bg); border: 2px solid var(--green-oval-border); color: var(--green-text-dark); font-weight: 600; padding: 8px 18px; border-radius: 9999px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); width: fit-content; }
 
   /* Guess image border matches drawing canvas */
   #guessImage { max-width: 100%; border: 2px solid #90a4b8; border-radius: 12px; margin-top: 10px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
@@ -153,16 +153,27 @@
   }
   /* Restart panel green */
   #restartBox {
-    background: var(--green-oval-bg) !important;
-    border: 2px solid var(--green-oval-border) !important;
-    color: var(--green-text-dark) !important;
+    background: #DBEAFE; /* blue-100 */
+    border: 2px solid #3B82F6; /* blue-500 */
+    color: #1E40AF; /* blue-800 */
   }
   #restartBox button {
-    background: var(--green-oval-border) !important;
+    background: #3B82F6; /* blue-500 */
   }
   #restartBox button:hover {
     filter: brightness(0.95);
   }
+
+  /* Make the Original Word/Phrase value look like the green guess pill */
+  #finalWord {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    background: var(--green-oval-bg);
+    border: 2px solid var(--green-oval-border);
+    color: var(--green-text-dark);
+  }
+
 </style>
 </head>
 <body>
@@ -245,9 +256,7 @@
 <div aria-label="Community Doodle" id="cdTitle"></div>
 <div id="cdDesc">Optional: Everyone who is waiting can draw together here. Your assigned color is below.</div>
 <div id="cdColorRow">Your color: <span id="cdSwatch"></span><span id="cdColorText"></span></div>
-<canvas height="460" id="communityCanvas" width="720"></canvas>
-<div class="chalk-tips">Tip: Use a mouse or finger. Lines appear in real-time for all waiting players.</div>
-</div>
+<canvas height="460" id="communityCanvas" width="720"></canvas></div>
 </div>
 <!-- Results -->
 <div class="container hidden" id="resultsScreen">
