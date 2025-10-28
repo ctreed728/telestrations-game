@@ -65,7 +65,7 @@
   .resultGuess { display: inline-block; background-color: #f0f6ff; border: 1px solid #b6d4ff; border-radius: 12px; padding: 10px 16px; text-align: center; color: var(--text); margin: 14px auto; max-width: 92%; word-wrap: break-word; }
   .resultDivider { margin: 30px 0; border-top: 1px dotted #c3d3e6; }
 
-  #restartBox { margin-top: 20px; background: #f1f5f9; border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 520px; margin-left: auto; margin-right: auto; }
+  
 
   @media (max-width: 767px) {
     #drawControlsTop, #drawControlsBottom { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
@@ -148,18 +148,10 @@
     font-weight: 600;
   }
   /* Restart panel green */
-  #restartBox {
-    background: var(--green-oval-bg) !important;
-    border: 2px solid var(--green-oval-border) !important;
-    color: var(--green-text-dark) !important;
-  }
-  #restartBox button {
-    background: var(--green-oval-border) !important;
-  }
-  #restartBox button:hover {
-    filter: brightness(0.95);
-  }
- .finalWordRow{font-weight:700;color:var(--green-text-dark);} .finalWordPill{display:inline-block;background-color:var(--green-oval-bg)!important;border:2px solid var(--green-oval-border)!important;border-radius:9999px!important;padding:10px 18px!important;color:var(--green-text-dark)!important;margin:14px auto;max-width:92%;word-wrap:break-word;font-size:1.25em!important;font-weight:700;}</style>
+  
+  
+  
+ .finalWordRow{font-weight:700;color:var(--green-text-dark);} .finalWordPill{display:inline-block;background-color:var(--green-oval-bg)!important;border:2px solid var(--green-oval-border)!important;border-radius:9999px!important;padding:10px 18px!important;color:var(--green-text-dark)!important;margin:14px auto;max-width:92%;word-wrap:break-word;font-size:1.25em!important;font-weight:700;} #restartBox{background:#EBF5FF;border:2px solid #3B82F6;color:#1E3A8A;} #restartBox button{background:#3B82F6;color:white;} #restartBox button:hover{filter:brightness(.95);} .statusPill{display:inline-block;background:var(--green-oval-bg);border:2px solid var(--green-oval-border);border-radius:9999px;padding:6px 14px;color:var(--green-text-dark);font-weight:700;}</style>
 </head>
 <body>
 <h1 onclick="resetToHome()">🎨 Telestrations Game 🎨</h1><div class="emojiFlow">🖌️ ➜ 💭 ➜ 🖌️ ➜ 💭 ➜ 🖌️ ➜ 💭</div>
@@ -242,7 +234,6 @@
 <div id="cdDesc">Optional: Everyone who is waiting can draw together here. Your assigned color is below.</div>
 <div id="cdColorRow">Your color: <span id="cdSwatch"></span><span id="cdColorText"></span></div>
 <canvas height="460" id="communityCanvas" width="720"></canvas>
-
 </div>
 </div>
 <!-- Results -->
