@@ -103,14 +103,14 @@
 
   #communityCanvas {
     width: 720px;
-    height: 580px;
+    height: 560px;
     background: #0f0f12;
     border: 2px solid #2a2a2a;
     box-shadow: 0 2px 8px rgba(0,0,0,0.20);
   }
   /* keep same aspect ratio as the main draw canvas on small screens */
   @media (max-width: 820px){
-    #communityCanvas { width: 96%; height: auto; aspect-ratio: 720 / 580; }
+    #communityCanvas { width: 96%; height: auto; aspect-ratio: 720 / 560; }
   }
 
   .chalk-tips { color: #a3ffcf; font-size: 12px; margin-top: 6px; }
@@ -267,7 +267,7 @@
 <div aria-label="Community Doodle" id="cdTitle"></div>
 <div id="cdDesc">Optional: Everyone who is waiting can draw together here. Your assigned color is below.</div>
 <div id="cdColorRow">Your color: <span id="cdSwatch"></span><span id="cdColorText"></span></div>
-<canvas height="580" id="communityCanvas" width="720"></canvas></div>
+<canvas height="560" id="communityCanvas" width="720"></canvas></div>
 </div>
 <!-- Results -->
 <div class="container hidden" id="resultsScreen">
@@ -1213,7 +1213,7 @@ function trySaveCommunityFinal(room){
 
   // Repaint from DB to an offscreen canvas to ensure consistency
   const off = document.createElement('canvas');
-  off.width = 720; off.height = 580;
+  off.width = 720; off.height = 560;
   const octx = off.getContext('2d');
 
   // chalkboard bg
