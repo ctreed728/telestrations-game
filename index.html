@@ -767,13 +767,14 @@ function startGuessTimer(room){
       const remaining = Math.max(0, duration - elapsed);
       byId('guessTimer').innerText = remaining + 's';
       if(remaining <= 0){
-        byId('guessInput').value = '';
+        const typed = (byId('guessInput') && byId('guessInput').value) ? byId('guessInput').value.trim() : '';
+        const guessText = typed || 'No guess';
         stopGuessTimer();
         db.ref('rooms/'+roomCode).once('value').then(s=>{
           const room = s.val();
           const idx = room.currentIndex || 0;
           const u = {};
-          u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:'No guess', player:username };
+          u['rooms/'+roomCode+'/gameData/'+idx] = { type:'guess', data:guessText, player:username };
           const next = idx + 1;
           if(next >= (room.order||[]).length){
             u['rooms/'+roomCode+'/state'] = 'results';
